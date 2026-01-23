@@ -5,13 +5,245 @@ Handles CDF file loading and epoch time conversion for MMS mission data.
 """
 
 import numpy as np
+import re
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple, Any
+from dataclasses import dataclass
 import cdflib
 from cdflib import cdfepoch
 import tempfile
 import os
 
+
+# ============================================================================
+# Variable Metadata Translation Layer
+# ============================================================================
+
+@dataclass
+class VariableMetadata:
+    """Metadata for a CDF variable with LaTeX labels."""
+    raw_name: str
+    label: str  # LaTeX formatted label
+    short_label: str  # Short version for compact displays
+    category: str  # Physical category
+    components: List[str]  # LaTeX component labels
+    units: str  # Physical units
+    psd_units: str  # Units for PSD plots
+
+
+# Regex patterns for variable classification (priority order)
+VARIABLE_PATTERNS = [
+    # Magnetic Field - FGM
+    {
+        'pattern': re.compile(r'fgm.*b_gse|b_gse.*fgm', re.IGNORECASE),
+        'label': r'$\mathbf{B}_{GSE}$ (Magnetic Field)',
+        'short_label': r'$\mathbf{B}_{GSE}$',
+        'category': 'magnetic_field',
+        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'units': 'nT',
+        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+    },
+    {
+        'pattern': re.compile(r'fgm.*b_gsm|b_gsm.*fgm', re.IGNORECASE),
+        'label': r'$\mathbf{B}_{GSM}$ (Magnetic Field)',
+        'short_label': r'$\mathbf{B}_{GSM}$',
+        'category': 'magnetic_field',
+        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'units': 'nT',
+        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+    },
+    {
+        'pattern': re.compile(r'fgm.*b_dmpa|b_dmpa.*fgm', re.IGNORECASE),
+        'label': r'$\mathbf{B}_{DMPA}$ (Magnetic Field)',
+        'short_label': r'$\mathbf{B}_{DMPA}$',
+        'category': 'magnetic_field',
+        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'units': 'nT',
+        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+    },
+    {
+        'pattern': re.compile(r'fgm.*b_bcs|b_bcs.*fgm', re.IGNORECASE),
+        'label': r'$\mathbf{B}_{BCS}$ (Magnetic Field)',
+        'short_label': r'$\mathbf{B}_{BCS}$',
+        'category': 'magnetic_field', 
+        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'units': 'nT',
+        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+    },
+    # Generic magnetic field
+    {
+        'pattern': re.compile(r'fgm|afg|dfg|scm', re.IGNORECASE),
+        'label': r'$\mathbf{B}$ (Magnetic Field)',
+        'short_label': r'$\mathbf{B}$',
+        'category': 'magnetic_field',
+        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'units': 'nT',
+        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+    },
+    # Ion Velocity - DIS
+    {
+        'pattern': re.compile(r'dis.*bulkv|dis.*velocity', re.IGNORECASE),
+        'label': r'$\mathbf{V}_i$ (Ion Velocity)',
+        'short_label': r'$\mathbf{V}_i$',
+        'category': 'velocity',
+        'components': [r'$V_{ix}$', r'$V_{iy}$', r'$V_{iz}$', r'$|V_i|$'],
+        'units': 'km/s',
+        'psd_units': r'$(\mathrm{km/s})^2/\mathrm{Hz}$'
+    },
+    # Electron Velocity - DES
+    {
+        'pattern': re.compile(r'des.*bulkv|des.*velocity', re.IGNORECASE),
+        'label': r'$\mathbf{V}_e$ (Electron Velocity)',
+        'short_label': r'$\mathbf{V}_e$',
+        'category': 'velocity',
+        'components': [r'$V_{ex}$', r'$V_{ey}$', r'$V_{ez}$', r'$|V_e|$'],
+        'units': 'km/s',
+        'psd_units': r'$(\mathrm{km/s})^2/\mathrm{Hz}$'
+    },
+    # Electric Field
+    {
+        'pattern': re.compile(r'edp|dce|e_gse|e_gsm|efield', re.IGNORECASE),
+        'label': r'$\mathbf{E}$ (Electric Field)',
+        'short_label': r'$\mathbf{E}$',
+        'category': 'electric_field',
+        'components': [r'$E_x$', r'$E_y$', r'$E_z$', r'$|E|$'],
+        'units': 'mV/m',
+        'psd_units': r'$(\mathrm{mV/m})^2/\mathrm{Hz}$'
+    },
+    # Ion Density
+    {
+        'pattern': re.compile(r'dis.*numberdensity|dis.*density|ni_', re.IGNORECASE),
+        'label': r'$N_i$ (Ion Density)',
+        'short_label': r'$N_i$',
+        'category': 'density',
+        'components': [r'$N_i$'],
+        'units': r'cm$^{-3}$',
+        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+    },
+    # Electron Density
+    {
+        'pattern': re.compile(r'des.*numberdensity|des.*density|ne_', re.IGNORECASE),
+        'label': r'$N_e$ (Electron Density)',
+        'short_label': r'$N_e$',
+        'category': 'density',
+        'components': [r'$N_e$'],
+        'units': r'cm$^{-3}$',
+        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+    },
+    # Generic density
+    {
+        'pattern': re.compile(r'numberdensity|density', re.IGNORECASE),
+        'label': r'$N$ (Density)',
+        'short_label': r'$N$',
+        'category': 'density',
+        'components': [r'$N$'],
+        'units': r'cm$^{-3}$',
+        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+    },
+    # Temperature
+    {
+        'pattern': re.compile(r'temp|t_para|t_perp', re.IGNORECASE),
+        'label': r'$T$ (Temperature)',
+        'short_label': r'$T$',
+        'category': 'temperature',
+        'components': [r'$T$'],
+        'units': 'eV',
+        'psd_units': r'$\mathrm{eV}^2/\mathrm{Hz}$'
+    },
+    # Pressure
+    {
+        'pattern': re.compile(r'press|pres', re.IGNORECASE),
+        'label': r'$P$ (Pressure)',
+        'short_label': r'$P$',
+        'category': 'pressure',
+        'components': [r'$P$'],
+        'units': 'nPa',
+        'psd_units': r'$\mathrm{nPa}^2/\mathrm{Hz}$'
+    },
+]
+
+
+def get_variable_metadata(raw_name: str, cdf_units: str = '') -> VariableMetadata:
+    """
+    Get LaTeX-formatted metadata for a CDF variable name.
+    
+    Uses regex pattern matching to classify variables and assign
+    publication-quality LaTeX labels.
+    
+    Args:
+        raw_name: Raw CDF variable name
+        cdf_units: Units from CDF file attributes (optional)
+        
+    Returns:
+        VariableMetadata with LaTeX labels and units
+    """
+    # Try each pattern in priority order
+    for pattern_info in VARIABLE_PATTERNS:
+        if pattern_info['pattern'].search(raw_name):
+            return VariableMetadata(
+                raw_name=raw_name,
+                label=pattern_info['label'],
+                short_label=pattern_info['short_label'],
+                category=pattern_info['category'],
+                components=pattern_info['components'],
+                units=cdf_units if cdf_units else pattern_info['units'],
+                psd_units=pattern_info['psd_units']
+            )
+    
+    # Fallback: clean up the raw name
+    clean_name = _clean_variable_name(raw_name)
+    return VariableMetadata(
+        raw_name=raw_name,
+        label=clean_name,
+        short_label=clean_name[:20] if len(clean_name) > 20 else clean_name,
+        category='other',
+        components=['Value'],
+        units=cdf_units if cdf_units else '',
+        psd_units=r'$\mathrm{units}^2/\mathrm{Hz}$'
+    )
+
+
+def _clean_variable_name(raw_name: str) -> str:
+    """Clean raw variable name for fallback display."""
+    # Extract spacecraft number
+    spacecraft = ''
+    match = re.match(r'^mms(\d)', raw_name, re.IGNORECASE)
+    if match:
+        spacecraft = f"MMS{match.group(1)} "
+    
+    # Remove common prefixes
+    name = re.sub(r'^mms\d_', '', raw_name, flags=re.IGNORECASE)
+    
+    # Replace underscores with spaces and capitalize
+    name = name.replace('_', ' ').title()
+    
+    # Shorten common terms
+    name = name.replace('Brst', 'Burst').replace('L2', '')
+    
+    return (spacecraft + name).strip()
+
+
+def get_component_label(metadata: VariableMetadata, component: str) -> str:
+    """
+    Get LaTeX label for a specific component.
+    
+    Args:
+        metadata: VariableMetadata for the variable
+        component: Component name ('X', 'Y', 'Z', 'Magnitude')
+        
+    Returns:
+        LaTeX formatted component label
+    """
+    component_map = {'X': 0, 'Y': 1, 'Z': 2, 'Magnitude': 3}
+    idx = component_map.get(component, 0)
+    
+    if idx < len(metadata.components):
+        return metadata.components[idx]
+    
+    # Fallback
+    if component == 'Magnitude':
+        return r'$|' + metadata.short_label.strip('$') + r'|$'
+    return metadata.short_label
 
 class CDFLoader:
     """

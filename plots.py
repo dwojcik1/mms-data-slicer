@@ -1,7 +1,7 @@
 """
-plots.py - Responsive Visualization Module
-============================================
-Plotly-based visualization with mobile-first responsive design.
+plots.py - Publication-Quality Visualization Module
+=====================================================
+Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
 import numpy as np
@@ -9,7 +9,6 @@ import plotly.graph_objects as go
 from typing import Optional, List, Dict, Any
 
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
-LABELS = ['X', 'Y', 'Z', 'W']
 
 # Responsive layout defaults
 RESPONSIVE_LAYOUT = dict(
@@ -28,8 +27,25 @@ RESPONSIVE_LAYOUT = dict(
 )
 
 
-def create_time_series_plot(time_data, data, title="Time Series", ylabel="Value", height=400):
-    """Create responsive interactive time series plot."""
+def create_time_series_plot(
+    time_data, 
+    data, 
+    title="Time Series", 
+    ylabel="Value",
+    component_labels: Optional[List[str]] = None,
+    height=400
+):
+    """
+    Create responsive time series plot with optional LaTeX component labels.
+    
+    Args:
+        time_data: Time array
+        data: Data array (1D or 2D)
+        title: Plot title (can include LaTeX)
+        ylabel: Y-axis label (can include LaTeX)
+        component_labels: LaTeX labels for each component
+        height: Plot height in pixels
+    """
     fig = go.Figure()
     
     if len(data.shape) == 1:
@@ -38,10 +54,12 @@ def create_time_series_plot(time_data, data, title="Time Series", ylabel="Value"
             name=ylabel, line=dict(color=COLORS[0], width=1.5)
         ))
     else:
+        labels = component_labels or [f'Component {i}' for i in range(data.shape[1])]
         for i in range(min(data.shape[1], 4)):
+            label = labels[i] if i < len(labels) else f'C{i}'
             fig.add_trace(go.Scattergl(
                 x=time_data, y=data[:, i], mode='lines',
-                name=LABELS[i], line=dict(color=COLORS[i], width=1.5)
+                name=label, line=dict(color=COLORS[i], width=1.5)
             ))
     
     fig.update_layout(
@@ -52,18 +70,29 @@ def create_time_series_plot(time_data, data, title="Time Series", ylabel="Value"
         height=height
     )
     
-    # Range slider for navigation
-    fig.update_xaxes(
-        rangeslider=dict(visible=True, thickness=0.04),
-        tickfont=dict(size=10)
-    )
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04), tickfont=dict(size=10))
     fig.update_yaxes(tickfont=dict(size=10))
     
     return fig
 
 
-def create_psd_plot(frequencies, power, title="Power Spectral Density", height=450):
-    """Create responsive log-log PSD plot with reference slopes."""
+def create_psd_plot(
+    frequencies, 
+    power, 
+    title="Power Spectral Density",
+    psd_units: str = r"PSD",
+    height=450
+):
+    """
+    Create log-log PSD plot with publication-quality units.
+    
+    Args:
+        frequencies: Frequency array in Hz
+        power: Power spectral density array
+        title: Plot title (can include LaTeX)
+        psd_units: Y-axis units (LaTeX formatted, e.g., r'$\mathrm{nT}^2/\mathrm{Hz}$')
+        height: Plot height
+    """
     fig = go.Figure()
     
     fig.add_trace(go.Scattergl(
@@ -72,7 +101,7 @@ def create_psd_plot(frequencies, power, title="Power Spectral Density", height=4
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
     ))
     
-    # Add Kolmogorov -5/3 slope reference
+    # Add reference slopes
     if len(frequencies) > 2:
         f_pos = frequencies[frequencies > 0]
         if len(f_pos) > 0:
@@ -81,23 +110,31 @@ def create_psd_plot(frequencies, power, title="Power Spectral Density", height=4
             p_mid = np.interp(f_mid, frequencies, power)
             
             f_ref = np.array([f_mid / 10, f_mid * 10])
-            p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
-            p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
             
+            # Kolmogorov -5/3 slope
+            p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
             fig.add_trace(go.Scatter(
-                x=f_ref, y=p_ref_53, mode='lines', name='f⁻⁵/³',
+                x=f_ref, y=p_ref_53, mode='lines', 
+                name=r'$f^{-5/3}$',
                 line=dict(dash='dash', width=2, color=COLORS[1])
             ))
+            
+            # Kinetic -8/3 slope
+            p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
             fig.add_trace(go.Scatter(
-                x=f_ref, y=p_ref_83, mode='lines', name='f⁻⁸/³',
+                x=f_ref, y=p_ref_83, mode='lines',
+                name=r'$f^{-8/3}$',
                 line=dict(dash='dot', width=2, color=COLORS[2])
             ))
+    
+    # Format Y-axis label with physics units
+    ylabel = f"PSD ({psd_units})" if psd_units else "Power Spectral Density"
     
     fig.update_layout(
         **RESPONSIVE_LAYOUT,
         title=dict(text=title, font=dict(size=16), x=0.5),
         xaxis_title="Frequency (Hz)",
-        yaxis_title="Power Spectral Density",
+        yaxis_title=ylabel,
         xaxis_type='log',
         yaxis_type='log',
         height=height
@@ -109,8 +146,15 @@ def create_psd_plot(frequencies, power, title="Power Spectral Density", height=4
     return fig
 
 
-def create_pdf_plot(bin_centers, density, title="PDF", xlabel="Value", log_y=False, height=400):
-    """Create responsive PDF histogram plot."""
+def create_pdf_plot(
+    bin_centers, 
+    density, 
+    title="PDF",
+    xlabel="Value",
+    log_y=False, 
+    height=400
+):
+    """Create responsive PDF histogram plot with optional Gaussian overlay."""
     fig = go.Figure()
     
     bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 1
