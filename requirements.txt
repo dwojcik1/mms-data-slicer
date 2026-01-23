@@ -1,21 +1,7 @@
 # MMS Data Slicer - Dependencies
-# ==============================
-
-# Core Framework
 streamlit>=1.30.0
-
-# Data Handling
 numpy>=1.24.0
 pandas>=2.0.0
-
-# CDF File Reading
 cdflib>=1.2.0
-
-# Interactive Visualization
 plotly>=5.18.0
-
-# Optional: Advanced Space Physics Libraries
-# Uncomment if needed for extended functionality
-# pyspedas>=1.4.0
-# pymms>=0.4.0
-# aidapy>=0.1.0
+scipy>=1.11.0
