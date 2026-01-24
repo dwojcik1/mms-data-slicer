@@ -26,6 +26,131 @@ RESPONSIVE_LAYOUT = dict(
     autosize=True
 )
 
+# Publication-standard B-field colors (JGR/GRL style)
+BFIELD_COLORS = {
+    'Bx': '#1f77b4',   # Blue
+    'By': '#2ca02c',   # Green
+    'Bz': '#d62728',   # Red  
+    'Bt': '#000000',   # Black
+    'B0': '#1f77b4',
+    'B1': '#2ca02c',
+    'B2': '#d62728',
+    'B3': '#000000',
+}
+
+
+def plot_magnetic_field(
+    df,
+    title: str = "Magnetic Field",
+    height: int = 500,
+    show_grid: bool = True
+):
+    """
+    Create publication-quality unified magnetic field plot (JGR/GRL style).
+    
+    All components are plotted on a single figure with standardized colors:
+    - Bx: Blue (#1f77b4)
+    - By: Green (#2ca02c)
+    - Bz: Red (#d62728)
+    - Bt/|B|: Black (#000000)
+    
+    Args:
+        df: DataFrame with DatetimeIndex and columns Bx, By, Bz, Bt
+        title: Dynamic title string (e.g., "MMS 1 | B | GSE | 11 January 2024 | 12:00:00 - 12:30:00")
+        height: Plot height in pixels
+        show_grid: Whether to show vertical grid lines
+    
+    Returns:
+        Plotly Figure object
+    """
+    fig = go.Figure()
+    
+    # LaTeX-style labels for legend
+    label_map = {
+        'Bx': r'$B_x$',
+        'By': r'$B_y$',
+        'Bz': r'$B_z$',
+        'Bt': r'$|B|$',
+        'B0': r'$B_x$',
+        'B1': r'$B_y$',
+        'B2': r'$B_z$',
+        'B3': r'$|B|$',
+    }
+    
+    # Plot each component with standardized colors
+    for col in df.columns:
+        color = BFIELD_COLORS.get(col, COLORS[0])
+        label = label_map.get(col, col)
+        
+        # Use thick line for magnitude, thinner for components
+        width = 2.0 if col in ['Bt', 'B3'] else 1.5
+        
+        fig.add_trace(go.Scattergl(
+            x=df.index,
+            y=df[col].values,
+            mode='lines',
+            name=label,
+            line=dict(color=color, width=width),
+            hovertemplate=f'{label}: %{{y:.3f}} nT<extra></extra>'
+        ))
+    
+    # Publication-quality layout
+    fig.update_layout(
+        template='plotly_white',
+        title=dict(
+            text=title,
+            font=dict(size=14, family='Arial, sans-serif'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis_title="Time (UTC)",
+        yaxis_title=r"$B$ (nT)",
+        height=height,
+        hovermode='x unified',
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=0.99,
+            xanchor='right',
+            x=0.99,
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1,
+            font=dict(size=12)
+        ),
+        margin=dict(l=60, r=30, t=60, b=50),
+    )
+    
+    # Grid styling (publication standard)
+    if show_grid:
+        fig.update_xaxes(
+            showgrid=True,
+            gridcolor='lightgrey',
+            griddash='dash',
+            gridwidth=0.5,
+            tickfont=dict(size=11),
+            tickformat='%H:%M:%S',
+            minor=dict(showgrid=True, gridcolor='#f0f0f0', griddash='dot')
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridcolor='lightgrey',
+            griddash='solid',
+            gridwidth=0.5,
+            tickfont=dict(size=11),
+            zeroline=True,
+            zerolinecolor='black',
+            zerolinewidth=1
+        )
+    else:
+        fig.update_xaxes(tickfont=dict(size=11))
+        fig.update_yaxes(tickfont=dict(size=11))
+    
+    # Add range slider for time navigation
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04))
+    
+    return fig
+
 
 def create_time_series_plot(
     time_data, 
@@ -35,6 +160,7 @@ def create_time_series_plot(
     component_labels: Optional[List[str]] = None,
     height=400
 ):
+
     """
     Create responsive time series plot with optional LaTeX component labels.
     

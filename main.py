@@ -266,29 +266,41 @@ def render_dataframe_analysis(df, time_data):
     columns = list(df.columns)
     
     if mode == "Time Series":
-        st.markdown("### Time Series Inspector")
+        # Get metadata from session state for dynamic title
+        info = st.session_state.get('download_info', {})
+        probe = info.get('probe', '?')
+        coord = info.get('coord', 'GSE').upper()
+        
+        # Generate dynamic publication-style title
+        if len(df) > 0:
+            date_str = df.index[0].strftime('%d %B %Y')
+            start_time_str = df.index[0].strftime('%H:%M:%S')
+            end_time_str = df.index[-1].strftime('%H:%M:%S')
+            title = f"MMS {probe} | B | {coord} | {date_str} | {start_time_str} – {end_time_str}"
+        else:
+            title = "Magnetic Field Time Series"
         
         with st.sidebar.expander("Settings", expanded=True):
-            selected_cols = st.multiselect("Variables", columns, default=columns[:min(4, len(columns))])
             sub = st.checkbox("Subsample", value=True, key="df_sub")
-            pts = st.slider("Points", 1000, 50000, 10000, key="df_pts") if sub else len(df)
+            pts = st.slider("Points", 1000, 50000, 15000, key="df_pts") if sub else len(df)
         
-        if not selected_cols:
-            st.caption("Select variables.")
-            return
+        # Subsample if needed
+        if sub and len(df) > pts:
+            step = len(df) // pts
+            plot_df = df.iloc[::step]
+        else:
+            plot_df = df
         
-        for col in selected_cols:
-            data = df[col].values
-            t = time_data
-            d = data
-            
-            if sub and len(t) > pts:
-                step = len(t) // pts
-                t = time_data[::step]
-                d = data[::step]
-            
-            fig = create_time_series_plot(t, d, title=col, ylabel=f"{col} (nT)")
-            st.plotly_chart(fig, use_container_width=True)
+        # Import the new publication-quality plotter
+        from plots import plot_magnetic_field
+        
+        # Create unified magnetic field plot
+        fig = plot_magnetic_field(plot_df, title=title, height=550)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Show data summary
+        st.caption(f"Displaying {len(plot_df):,} of {len(df):,} points | Sampling: {1/(df.index[1] - df.index[0]).total_seconds():.1f} Hz" if len(df) > 1 else "")
+
     
     else:
         st.markdown("### Spectral Analysis")
