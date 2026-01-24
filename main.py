@@ -1,15 +1,16 @@
 """
-MMS Data Slicer - Kinetic Scale Explorer
-=========================================
-Main Streamlit application with LaTeX variable labels.
+MMS Turbulence Analysis Suite
+==============================
+Kinetic scale time series processing for space plasma physics.
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 # MUST be first Streamlit command
 st.set_page_config(
-    page_title="MMS Data Slicer",
-    page_icon="🛰️",
+    page_title="MMS Turbulence Analysis Suite",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -25,37 +26,221 @@ from utils import (
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 from plots import create_time_series_plot, create_psd_plot, create_pdf_plot, create_stats_display
 
-# Apply responsive CSS
-apply_custom_css()
+
+# ============================================================================
+# Liquid Glass Landing Page (Full HTML/CSS)
+# ============================================================================
+
+LANDING_PAGE_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 35%, #0d1f3c 65%, #0a0a1a 100%);
+    background-size: 400% 400%;
+    animation: aurora 15s ease infinite;
+    min-height: 100vh;
+    color: #f8fafc;
+    padding: 40px 30px;
+}
+
+@keyframes aurora {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.hero {
+    text-align: center;
+    padding: 20px 0 50px 0;
+}
+
+.hero-title {
+    font-size: clamp(2.5rem, 6vw, 4rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #ffffff 0%, #c7d2fe 40%, #a5b4fc 70%, #818cf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 40px rgba(129, 140, 248, 0.3));
+    margin-bottom: 16px;
+    line-height: 1.1;
+}
+
+.hero-subtitle {
+    font-size: clamp(1rem, 2vw, 1.4rem);
+    font-weight: 400;
+    color: rgba(248, 250, 252, 0.5);
+    letter-spacing: 0.01em;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1) 20%, rgba(255,255,255,0.1) 80%, transparent);
+    margin: 30px auto;
+    max-width: 800px;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 10px;
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+        0 20px 50px -15px rgba(0, 0, 0, 0.4);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: default;
+}
+
+.glass-card:hover {
+    transform: translateY(-6px) scale(1.015);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+        0 30px 60px -15px rgba(0, 0, 0, 0.5),
+        0 0 80px -20px rgba(99, 102, 241, 0.2);
+}
+
+.card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgba(248, 250, 252, 0.95);
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+}
+
+.card-body {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: rgba(248, 250, 252, 0.5);
+}
+
+.card-body strong {
+    color: rgba(165, 180, 252, 0.9);
+    font-weight: 500;
+}
+
+.footer {
+    text-align: center;
+    padding: 50px 20px 20px 20px;
+    color: rgba(248, 250, 252, 0.3);
+    font-size: 0.95rem;
+    letter-spacing: 0.02em;
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+    <div class="hero-title">MMS Turbulence Analysis Suite</div>
+    <div class="hero-subtitle">Kinetic scale time series processing for space plasma physics</div>
+</div>
+
+<div class="divider"></div>
+
+<div class="grid-container">
+    <div class="glass-card">
+        <div class="card-title">Spectral Analysis</div>
+        <div class="card-body">
+            <strong>Welch PSD</strong> estimation with configurable windowing. 
+            Spectral indices <strong>α</strong> analysis across inertial and kinetic ranges.
+            Reference slopes for Kolmogorov and kinetic turbulence.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Stochastic Dynamics</div>
+        <div class="card-body">
+            <strong>PDFs & Moments</strong> computation for statistical characterization.
+            Quantification of non-Gaussianity via Kurtosis <strong>κ</strong> and Skewness <strong>S</strong>.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Dissipation Proxies</div>
+        <div class="card-body">
+            <strong>J·E'</strong> analysis for energy conversion rates.
+            Detection of EDR/IDR signatures, Hall fields, and reconnection events.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Coherent Structures</div>
+        <div class="card-body">
+            <strong>PVI Method</strong> (Partial Variance of Increments) for discontinuity detection.
+            Identification of current sheets, flux ropes, and dipolarization fronts.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Wave Modes</div>
+        <div class="card-body">
+            <strong>Compressibility</strong> and magnetic helicity analysis.
+            Ratio δB⊥/δB∥ for mode classification. Kinetic Alfvén Waves (KAW) signatures.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Signal Integrity</div>
+        <div class="card-body">
+            <strong>Stationarity tests</strong> (ADF) for time series validation.
+            Outlier despiking algorithms and linear interpolation for data gaps.
+        </div>
+    </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="footer">Select a dataset from the sidebar to begin</div>
+
+</body>
+</html>
+"""
 
 
 # ============================================================================
-# Cached computation functions
+# Cached Functions
 # ============================================================================
 
 @st.cache_data
 def cached_psd(data_tuple, time_tuple):
-    """Cached PSD computation."""
     data = np.array(data_tuple)
     time_data = np.array(time_tuple, dtype='datetime64[ns]')
     return compute_psd_welch(data, time_data)
 
-
 @st.cache_data  
 def cached_pdf(data_tuple, n_bins):
-    """Cached PDF computation."""
     return compute_pdf(np.array(data_tuple), n_bins=n_bins)
-
 
 @st.cache_data
 def cached_stats(data_tuple):
-    """Cached statistics computation."""
     return compute_statistics(np.array(data_tuple))
-
 
 @st.cache_data
 def cached_metadata(raw_name: str, units: str = '') -> dict:
-    """Cache variable metadata lookup."""
     meta = get_variable_metadata(raw_name, units)
     return {
         'raw_name': meta.raw_name,
@@ -73,306 +258,195 @@ def cached_metadata(raw_name: str, units: str = '') -> dict:
 # ============================================================================
 
 def main():
-    # Header
-    st.markdown('<p class="main-header">🛰️ MMS Data Slicer</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Kinetic Scale Explorer | Turbulence Analysis</p>', unsafe_allow_html=True)
-    
     # Sidebar
-    st.sidebar.header("⚙️ Configuration")
+    st.sidebar.markdown("### Configuration")
+    st.sidebar.markdown("##### Data Input")
+    uploaded_file = st.sidebar.file_uploader("CDF File", type=['cdf'], label_visibility="collapsed")
     
-    # Step 1: File Upload
-    st.sidebar.subheader("📁 Upload CDF")
-    uploaded_file = st.sidebar.file_uploader("Choose a CDF file", type=['cdf'], label_visibility="collapsed")
-    
+    # Landing page when no file uploaded
     if uploaded_file is None:
-        st.info("👆 Upload a CDF file using the sidebar to begin analysis.")
-        show_welcome()
+        # Use components.html for full HTML/CSS rendering
+        components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
         return
+    
+    # Apply standard styling for analysis mode
+    apply_custom_css()
     
     # Load CDF
     try:
         loader = CDFLoader.from_uploaded_file(uploaded_file)
-        st.sidebar.success(f"✅ {uploaded_file.name}")
+        st.sidebar.caption(f"Loaded: {uploaded_file.name}")
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"Error: {e}")
         return
     
-    # Get time data
     time_data = loader.get_time_data()
     if time_data is None:
-        st.error("❌ No time variable found.")
+        st.error("No time variable found.")
         return
     
-    # Step 2: Navigation Mode
-    st.sidebar.subheader("🧭 Analysis Mode")
-    mode = st.sidebar.radio("Mode:", ["📊 Raw Data", "🌀 Turbulence"], label_visibility="collapsed")
+    st.sidebar.markdown("##### Mode")
+    mode = st.sidebar.radio("", ["Time Series", "Spectral"], label_visibility="collapsed")
     
-    # Get available variables and build metadata cache
     plottable_vars = loader.get_plottable_variables()
     if not plottable_vars:
-        st.warning("⚠️ No plottable variables found.")
+        st.warning("No plottable variables.")
         return
     
-    # Build metadata for all variables
     var_metadata = {}
     for var in plottable_vars:
         attrs = loader.get_variable_attributes(var)
         units = attrs.get('UNITS', '') if isinstance(attrs.get('UNITS'), str) else ''
         var_metadata[var] = cached_metadata(var, units)
     
-    # Format function for selectbox - shows LaTeX label
-    def format_var_label(raw_name):
-        meta = var_metadata.get(raw_name, {})
-        return meta.get('label', raw_name)
+    fmt = lambda x: var_metadata.get(x, {}).get('label', x)
     
     # ========================================================================
-    # RAW DATA INSPECTOR
+    # TIME SERIES MODE
     # ========================================================================
-    if mode == "📊 Raw Data":
-        st.subheader("📊 Raw Data Inspector")
+    if mode == "Time Series":
+        st.markdown("### Time Series Inspector")
         
-        with st.sidebar.expander("⚙️ Settings", expanded=True):
-            selected_vars = st.multiselect(
-                "Variables:", 
-                plottable_vars,
-                default=plottable_vars[:min(3, len(plottable_vars))],
-                format_func=format_var_label
-            )
-            enable_subsample = st.checkbox("Subsample", value=True)
-            max_points = st.slider("Max points", 1000, 50000, 10000) if enable_subsample else len(time_data)
+        with st.sidebar.expander("Settings", expanded=True):
+            sel = st.multiselect("Variables", plottable_vars, 
+                                 default=plottable_vars[:min(3, len(plottable_vars))], format_func=fmt)
+            sub = st.checkbox("Subsample", value=True)
+            pts = st.slider("Points", 1000, 50000, 10000) if sub else len(time_data)
         
-        if not selected_vars:
-            st.warning("Select variables from Settings.")
+        if not sel:
+            st.caption("Select variables from the sidebar.")
             return
         
-        for var in selected_vars:
+        for var in sel:
             data = loader.get_variable_data(var)
-            if data is None:
+            if data is None: 
                 continue
-            
             meta = var_metadata[var]
             ylabel = f"{meta['short_label']} ({meta['units']})" if meta['units'] else meta['short_label']
-            
-            # Subsample
-            t_plot, d_plot = time_data, data
-            if enable_subsample and len(time_data) > max_points:
-                step = len(time_data) // max_points
-                t_plot = time_data[::step]
-                d_plot = data[::step] if len(data.shape) == 1 else data[::step, :]
-            
-            # Use LaTeX component labels
-            comp_labels = meta.get('components', None)
-            fig = create_time_series_plot(t_plot, d_plot, title=meta['label'], 
-                                          ylabel=ylabel, component_labels=comp_labels)
+            t, d = time_data, data
+            if sub and len(time_data) > pts:
+                step = len(time_data) // pts
+                t = time_data[::step]
+                d = data[::step] if len(data.shape) == 1 else data[::step, :]
+            fig = create_time_series_plot(t, d, title=meta['label'], ylabel=ylabel, 
+                                          component_labels=meta.get('components'))
             st.plotly_chart(fig, use_container_width=True)
         
-        with st.expander("📋 Metadata"):
+        with st.expander("Metadata"):
             attrs = loader.get_global_attributes()
             for key, val in list(attrs.items())[:10]:
                 st.text(f"{key}: {str(val)[:80]}")
     
     # ========================================================================
-    # TURBULENCE ANALYSIS
+    # SPECTRAL ANALYSIS MODE
     # ========================================================================
     else:
-        st.subheader("🌀 Turbulence Analysis")
+        st.markdown("### Spectral Analysis")
         
-        with st.sidebar.expander("⚙️ Variable Selection", expanded=True):
-            # Group by category for cleaner selection
-            categories = loader.get_physics_variables()
-            non_empty = [k for k, v in categories.items() if v]
-            
+        with st.sidebar.expander("Variable", expanded=True):
+            cats = loader.get_physics_variables()
+            non_empty = [k for k, v in cats.items() if v]
             if not non_empty:
-                st.warning("No physics variables found.")
+                st.caption("No variables detected.")
                 return
-            
-            # Category selector with nice labels
-            category_labels = {
-                'magnetic_field': '🧲 Magnetic Field',
-                'electric_field': '⚡ Electric Field',
-                'velocity': '💨 Velocity',
-                'density': '🔵 Density',
-                'temperature': '🌡️ Temperature',
-                'pressure': '📊 Pressure',
-                'other': '📁 Other'
-            }
-            category = st.selectbox(
-                "Category:", 
-                non_empty,
-                format_func=lambda x: category_labels.get(x, x.title())
-            )
-            
-            category_vars = categories.get(category, [])
-            
-            # Variable selector with LaTeX labels
-            selected_var = st.selectbox(
-                "Variable:", 
-                category_vars,
-                format_func=format_var_label
-            )
+            cat = st.selectbox("Category", non_empty, 
+                               format_func=lambda x: x.replace('_', ' ').title())
+            var = st.selectbox("Variable", cats.get(cat, []), format_func=fmt)
         
-        # Get metadata for selected variable
-        meta = var_metadata[selected_var]
-        var_data = loader.get_variable_data(selected_var)
-        var_info = loader.classify_variable(selected_var)
+        meta = var_metadata[var]
+        vdata = loader.get_variable_data(var)
+        vinfo = loader.classify_variable(var)
         
-        if var_data is None:
-            st.error(f"Could not load: {selected_var}")
+        if vdata is None:
+            st.error("Failed to load variable.")
             return
         
-        # Component selector for vectors
-        component = None
-        component_label = meta['short_label']
-        
-        if var_info['type'] == 'vector':
-            with st.sidebar.expander("📐 Component", expanded=True):
-                n_comp = var_info['n_components']
-                options = ['X', 'Y', 'Z'][:n_comp] + ['Magnitude']
-                component = st.radio("Component:", options, horizontal=True)
-            
-            analysis_data = extract_component(var_data, component)
-            
-            # Get LaTeX label for component
-            comp_idx = {'X': 0, 'Y': 1, 'Z': 2, 'Magnitude': 3}.get(component, 0)
-            if comp_idx < len(meta['components']):
-                component_label = meta['components'][comp_idx]
+        comp, comp_label = None, meta['short_label']
+        if vinfo['type'] == 'vector':
+            with st.sidebar.expander("Component", expanded=True):
+                opts = ['X', 'Y', 'Z'][:vinfo['n_components']] + ['Magnitude']
+                comp = st.radio("", opts, horizontal=True, label_visibility="collapsed")
+            adata = extract_component(vdata, comp)
+            cidx = {'X': 0, 'Y': 1, 'Z': 2, 'Magnitude': 3}.get(comp, 0)
+            comp_label = meta['components'][cidx] if cidx < len(meta['components']) else comp
         else:
-            analysis_data = var_data
+            adata = vdata
         
-        # Method selector
-        with st.sidebar.expander("🔬 Analysis Method", expanded=True):
-            method = st.radio("Method:", ["PSD", "PDF", "Summary"], horizontal=True)
+        with st.sidebar.expander("Method", expanded=True):
+            method = st.radio("", ["PSD", "PDF", "Summary"], horizontal=True, label_visibility="collapsed")
         
-        # Info metrics with LaTeX labels
         cols = st.columns(3)
         cols[0].metric("Variable", meta['short_label'])
-        cols[1].metric("Points", f"{len(analysis_data):,}")
-        cols[2].metric("Component", component if component else "Scalar")
-        
+        cols[1].metric("Samples", f"{len(adata):,}")
+        cols[2].metric("Component", comp or "Scalar")
         st.divider()
         
-        # ====================================================================
-        # PSD Analysis
-        # ====================================================================
+        # PSD
         if method == "PSD":
-            st.markdown(f"### 📉 Power Spectral Density: {component_label}")
-            
+            st.markdown(f"#### Power Spectral Density: {comp_label}")
             try:
-                data_tuple = tuple(analysis_data.flatten())
-                time_tuple = tuple(time_data.astype('datetime64[ns]').astype(np.int64))
-                
-                with st.spinner("Computing PSD..."):
-                    psd_result = cached_psd(data_tuple, time_tuple)
-                
-                # Use physics-aware units from metadata
-                title = f"PSD: {meta['label']}" + (f" ({component})" if component else "")
-                fig = create_psd_plot(
-                    psd_result.frequencies, 
-                    psd_result.power,
-                    title=title,
-                    psd_units=meta['psd_units']
-                )
+                psd = cached_psd(tuple(adata.flatten()), 
+                                 tuple(time_data.astype('datetime64[ns]').astype(np.int64)))
+                fig = create_psd_plot(psd.frequencies, psd.power, 
+                                      title=f"PSD: {meta['label']}", psd_units=meta['psd_units'])
                 st.plotly_chart(fig, use_container_width=True)
-                
-                st.caption(f"Sampling: **{psd_result.sampling_frequency:.2f} Hz** | Segments: **{psd_result.nperseg}** pts")
-                
+                st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg} pts")
             except Exception as e:
-                st.error(f"PSD error: {e}")
+                st.error(str(e))
         
-        # ====================================================================
-        # PDF & Moments
-        # ====================================================================
+        # PDF
         elif method == "PDF":
-            st.markdown(f"### 📊 Probability Distribution: {component_label}")
+            st.markdown(f"#### PDF: {comp_label}")
+            c1, c2 = st.columns([3, 1])
+            bins = c1.slider("Bins", 20, 200, 50)
+            logy = c2.checkbox("Log Y")
             
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                n_bins = st.slider("Bins:", 20, 200, 50)
-            with col2:
-                log_y = st.checkbox("Log Y")
-            
-            col_pdf, col_stats = st.columns([2, 1])
-            
-            with col_pdf:
+            cp, cs = st.columns([2, 1])
+            with cp:
                 try:
-                    data_tuple = tuple(analysis_data.flatten())
-                    pdf_result = cached_pdf(data_tuple, n_bins)
-                    
-                    xlabel = f"{component_label} ({meta['units']})" if meta['units'] else component_label
-                    title = f"PDF: {meta['short_label']}" + (f" ({component})" if component else "")
-                    
-                    fig = create_pdf_plot(
-                        pdf_result.bin_centers, 
-                        pdf_result.density,
-                        title=title, 
-                        xlabel=xlabel, 
-                        log_y=log_y
-                    )
+                    pdf = cached_pdf(tuple(adata.flatten()), bins)
+                    xlabel = f"{comp_label} ({meta['units']})" if meta['units'] else comp_label
+                    fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=xlabel, log_y=logy)
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
-                    st.error(f"PDF error: {e}")
-            
-            with col_stats:
-                st.markdown("#### Statistics")
+                    st.error(str(e))
+            with cs:
+                st.markdown("##### Statistics")
                 try:
-                    data_tuple = tuple(analysis_data.flatten())
-                    stats = cached_stats(data_tuple)
-                    for name, value in create_stats_display(stats).items():
-                        st.metric(name, value)
+                    stats = cached_stats(tuple(adata.flatten()))
+                    for n, v in create_stats_display(stats).items():
+                        st.metric(n, v)
                 except Exception as e:
                     st.error(str(e))
         
-        # ====================================================================
         # Summary
-        # ====================================================================
         else:
-            st.markdown(f"### 📋 Summary: {meta['label']}")
-            
-            # Time series
+            st.markdown(f"#### Summary: {meta['label']}")
             step = max(1, len(time_data) // 8000)
-            t_plot = time_data[::step]
-            d_plot = analysis_data[::step]
-            
-            ylabel = f"{component_label} ({meta['units']})" if meta['units'] else component_label
-            fig = create_time_series_plot(t_plot, d_plot, title=meta['label'], ylabel=ylabel, height=350)
+            ylabel = f"{comp_label} ({meta['units']})" if meta['units'] else comp_label
+            fig = create_time_series_plot(time_data[::step], adata[::step], 
+                                          title=meta['label'], ylabel=ylabel, height=350)
             st.plotly_chart(fig, use_container_width=True)
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("#### Statistics")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("##### Statistics")
                 try:
-                    data_tuple = tuple(analysis_data.flatten())
-                    stats = cached_stats(data_tuple)
-                    for name, value in list(create_stats_display(stats).items())[:6]:
-                        st.text(f"{name}: {value}")
+                    stats = cached_stats(tuple(adata.flatten()))
+                    for n, v in list(create_stats_display(stats).items())[:6]:
+                        st.text(f"{n}: {v}")
                 except Exception as e:
                     st.error(str(e))
-            
-            with col2:
-                st.markdown("#### PSD Preview")
+            with c2:
+                st.markdown("##### PSD Preview")
                 try:
-                    data_tuple = tuple(analysis_data.flatten())
-                    time_tuple = tuple(time_data.astype('datetime64[ns]').astype(np.int64))
-                    psd = cached_psd(data_tuple, time_tuple)
+                    psd = cached_psd(tuple(adata.flatten()), 
+                                     tuple(time_data.astype('datetime64[ns]').astype(np.int64)))
                     fig = create_psd_plot(psd.frequencies, psd.power, 
                                           psd_units=meta['psd_units'], height=300)
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
                     st.error(str(e))
-
-
-def show_welcome():
-    """Display welcome info."""
-    with st.expander("📖 About", expanded=True):
-        st.markdown("""
-        **MMS Data Slicer** visualizes NASA MMS mission CDF files with publication-quality labels.
-        
-        **Features:**
-        - 📊 Raw Data Inspector - View time series with LaTeX notation
-        - 🌀 Turbulence Analysis - PSD with physics units ($\\mathrm{nT}^2/\\mathrm{Hz}$)
-        - 📱 Responsive design - Phone to 4K displays
-        """)
 
 
 if __name__ == "__main__":
