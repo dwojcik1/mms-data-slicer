@@ -271,12 +271,22 @@ def render_dataframe_analysis(df, time_data):
         probe = info.get('probe', '?')
         coord = info.get('coord', 'GSE').upper()
         
-        # Generate dynamic publication-style title
+        # Generate dynamic publication-style title (handles multi-day intervals)
         if len(df) > 0:
-            date_str = df.index[0].strftime('%d %B %Y')
-            start_time_str = df.index[0].strftime('%H:%M:%S')
-            end_time_str = df.index[-1].strftime('%H:%M:%S')
-            title = f"MMS {probe} | B | {coord} | {date_str} | {start_time_str} – {end_time_str}"
+            start_dt = df.index[0]
+            end_dt = df.index[-1]
+            
+            # Check if same day or multi-day interval
+            if start_dt.date() == end_dt.date():
+                # Same day: "MMS 1 | B | GSE | 11 January 2024 | 12:00:00 – 12:30:00"
+                date_str = start_dt.strftime('%d %B %Y')
+                time_range = f"{start_dt.strftime('%H:%M:%S')} – {end_dt.strftime('%H:%M:%S')}"
+                title = f"MMS {probe} | B | {coord} | {date_str} | {time_range}"
+            else:
+                # Multi-day: "MMS 1 | B | GSE | 13 Mar 2021 23:00 – 14 Mar 2021 05:00"
+                start_str = start_dt.strftime('%d %b %Y %H:%M')
+                end_str = end_dt.strftime('%d %b %Y %H:%M')
+                title = f"MMS {probe} | B | {coord} | {start_str} – {end_str}"
         else:
             title = "Magnetic Field Time Series"
         
@@ -298,6 +308,8 @@ def render_dataframe_analysis(df, time_data):
         
         # Create unified magnetic field plot with white background
         fig = plot_magnetic_field(plot_df, title=title, height=580)
+        
+        # Render with MathJax support for LaTeX labels
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
         # Show data summary
@@ -305,14 +317,15 @@ def render_dataframe_analysis(df, time_data):
             sampling_hz = 1 / (df.index[1] - df.index[0]).total_seconds()
             st.caption(f"Displaying {len(plot_df):,} of {len(df):,} points | Original sampling: {sampling_hz:.1f} Hz")
         
-        # Subsample info notice
+        # Subsample info notice (icon only in parameter, not in text)
         if is_subsampled:
             st.info(
-                "ℹ️ **Note:** To maintain performance, large datasets are subsampled. "
+                "**Note:** To maintain performance, large datasets are subsampled. "
                 "Adjust the **Points** slider in Settings (sidebar) to show more detail. "
-                "Use the camera icon (📷) in the plot toolbar to export a high-resolution PNG.",
+                "Use the camera icon in the plot toolbar to export a high-resolution PNG.",
                 icon="ℹ️"
             )
+
 
 
     

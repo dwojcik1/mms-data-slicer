@@ -112,15 +112,16 @@ def plot_magnetic_field(
             y=0.95
         ),
         
-        # Axis titles with LaTeX and proper sizing
+        # Axis titles - plain text X-axis, LaTeX Y-axis
         xaxis_title=dict(
-            text=r"$\text{Epoch [UTC]}$",
+            text="Epoch [UTC]",
             font=dict(size=16, color='black')
         ),
         yaxis_title=dict(
-            text=r"$\mathbf{B}$ [nT]",
+            text=r"<b>B</b> [nT]",
             font=dict(size=16, color='black')
         ),
+
         
         height=height,
         hovermode='x unified',
