@@ -50,131 +50,126 @@ GLASS_CSS = """
     100% { background-position: 0% 50%; }
 }
 
-/* Hero Section */
+/* Hero styling */
+.hero-container {
+    text-align: center;
+    padding: 2rem 1rem 1rem 1rem;
+}
+
 .hero-title {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
-    font-weight: 700;
+    font-size: clamp(2.5rem, 6vw, 4rem) !important;
+    font-weight: 700 !important;
     letter-spacing: -0.03em;
     background: linear-gradient(135deg, #ffffff 0%, #a8b5ff 50%, #7dd3fc 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    text-align: center;
     margin-bottom: 0.5rem;
-    padding-top: 1rem;
 }
 
 .hero-subtitle {
-    font-size: clamp(1.1rem, 2vw, 1.6rem);
+    font-size: clamp(1.1rem, 2vw, 1.4rem) !important;
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.65);
-    text-align: center;
-    margin-bottom: 3rem;
-    letter-spacing: 0.01em;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 2rem;
 }
 
-/* Bento Grid Container */
-.bento-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    padding: 0 1rem;
-    max-width: 1400px;
-    margin: 0 auto;
-}
-
-/* Glass Card */
-.glass-card {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 24px;
-    padding: 32px;
+/* Glass effect for st.container(border=True) */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 24px !important;
     box-shadow: 
         0 8px 32px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    min-height: 200px;
+        inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+    overflow: hidden !important;
 }
 
-.glass-card:hover {
+div[data-testid="stVerticalBlockBorderWrapper"]:hover {
     transform: translateY(-4px) scale(1.01);
     box-shadow: 
         0 16px 48px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
+div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    padding: 1.5rem !important;
+}
+
+/* Card title styling */
 .card-title {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.95);
-    margin-bottom: 12px;
+    font-size: 1.25rem !important;
+    font-weight: 600 !important;
+    color: rgba(255, 255, 255, 0.95) !important;
+    margin-bottom: 0.75rem !important;
     letter-spacing: -0.01em;
 }
 
-.card-description {
-    font-size: 0.95rem;
-    line-height: 1.6;
-    color: rgba(255, 255, 255, 0.6);
-    flex-grow: 1;
+/* Card description */
+.card-desc {
+    font-size: 0.95rem !important;
+    line-height: 1.65 !important;
+    color: rgba(255, 255, 255, 0.55) !important;
 }
 
-.card-description strong {
-    color: rgba(168, 181, 255, 0.9);
+.card-desc strong {
+    color: rgba(168, 181, 255, 0.95) !important;
     font-weight: 500;
 }
 
 /* Footer */
 .glass-footer {
     text-align: center;
-    padding: 3rem 1rem;
-    color: rgba(255, 255, 255, 0.4);
-    font-size: 1rem;
-    letter-spacing: 0.02em;
+    padding: 2rem 1rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.95rem;
 }
 
 /* Divider */
-.glass-divider {
-    height: 1px;
+hr {
+    border: none !important;
+    height: 1px !important;
     background: linear-gradient(90deg, 
         transparent, 
         rgba(255, 255, 255, 0.1) 20%, 
         rgba(255, 255, 255, 0.1) 80%, 
-        transparent);
-    margin: 2rem auto;
-    max-width: 800px;
+        transparent) !important;
+    margin: 2rem 0 !important;
 }
 
-/* Sidebar Styling */
+/* Sidebar */
 [data-testid="stSidebar"] {
-    background: rgba(10, 10, 26, 0.95);
-    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(10, 10, 26, 0.95) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
-[data-testid="stSidebar"] .stMarkdown {
-    color: rgba(255, 255, 255, 0.8);
+[data-testid="stSidebar"] .stMarkdown,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] .stCaption {
+    color: rgba(255, 255, 255, 0.75) !important;
 }
 
-/* Override Streamlit defaults for dark theme */
+/* Header */
 .stApp [data-testid="stHeader"] {
-    background: transparent;
+    background: transparent !important;
 }
 
+/* Container width */
 .stApp .block-container {
-    max-width: 100%;
-    padding-top: 2rem;
+    max-width: 1400px !important;
+    padding: 1rem 2rem !important;
 }
 
-/* Metric cards in analysis mode */
+/* Metrics */
 [data-testid="stMetric"] {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 1rem;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 16px !important;
+    padding: 1rem !important;
 }
 
 [data-testid="stMetric"] label {
@@ -185,91 +180,22 @@ GLASS_CSS = """
     color: rgba(255, 255, 255, 0.9) !important;
 }
 
-/* Expander styling */
+/* Expanders */
 .streamlit-expanderHeader {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-radius: 12px !important;
     color: rgba(255, 255, 255, 0.8) !important;
 }
 
-/* Radio buttons */
-.stRadio > div {
-    background: transparent;
+/* Text colors for dark theme */
+.stMarkdown, .stText, p, span {
+    color: rgba(255, 255, 255, 0.8);
 }
 
-.stRadio label {
-    color: rgba(255, 255, 255, 0.7) !important;
+h1, h2, h3, h4 {
+    color: rgba(255, 255, 255, 0.95) !important;
 }
 </style>
-"""
-
-BENTO_GRID_HTML = """
-<div class="hero-title">Turbulence Analysis Suite</div>
-<div class="hero-subtitle">Time series processing for space plasma physics</div>
-
-<div class="glass-divider"></div>
-
-<div class="bento-grid">
-    <div class="glass-card">
-        <div class="card-title">Spectral Analysis</div>
-        <div class="card-description">
-            <strong>Welch PSD</strong> estimation with configurable windowing. 
-            Analysis of spectral indices <strong>α</strong> across inertial and kinetic ranges.
-            Reference slopes for Kolmogorov and kinetic turbulence.
-        </div>
-    </div>
-    
-    <div class="glass-card">
-        <div class="card-title">Stochastic Dynamics</div>
-        <div class="card-description">
-            <strong>PDFs & Moments</strong> computation. Quantification of non-Gaussianity 
-            via Kurtosis <strong>κ</strong> and Skewness <strong>S</strong>. 
-            Structure functions for intermittency analysis.
-        </div>
-    </div>
-    
-    <div class="glass-card">
-        <div class="card-title">Dissipation Proxies</div>
-        <div class="card-description">
-            <strong>J·E'</strong> analysis for energy conversion. Detection of 
-            EDR/IDR signatures, Hall fields, and magnetic reconnection events 
-            in kinetic-scale plasmas.
-        </div>
-    </div>
-    
-    <div class="glass-card">
-        <div class="card-title">Coherent Structures</div>
-        <div class="card-description">
-            <strong>PVI Method</strong> (Partial Variance of Increments) for 
-            discontinuity detection. Identification of current sheets, 
-            flux ropes, and dipolarization fronts.
-        </div>
-    </div>
-    
-    <div class="glass-card">
-        <div class="card-title">Wave Modes</div>
-        <div class="card-description">
-            <strong>Compressibility</strong> analysis and magnetic helicity σ<sub>m</sub>. 
-            Ratio δB<sub>⊥</sub>/δB<sub>∥</sub> for mode identification. 
-            Kinetic Alfvén Wave (KAW) signatures.
-        </div>
-    </div>
-    
-    <div class="glass-card">
-        <div class="card-title">Signal Integrity</div>
-        <div class="card-description">
-            <strong>Stationarity tests</strong> (ADF) for time series validation. 
-            Outlier removal via despiking algorithms. 
-            Linear interpolation for data gap handling.
-        </div>
-    </div>
-</div>
-
-<div class="glass-divider"></div>
-
-<div class="glass-footer">
-    Select a dataset from the sidebar to begin analysis
-</div>
 """
 
 
@@ -313,9 +239,80 @@ def cached_metadata(raw_name: str, units: str = '') -> dict:
 # ============================================================================
 
 def show_landing_page():
-    """Render the glassmorphism landing page."""
-    st.markdown(GLASS_CSS, unsafe_allow_html=True)
-    st.markdown(BENTO_GRID_HTML, unsafe_allow_html=True)
+    """Render the glassmorphism landing page using native Streamlit components."""
+    
+    # Hero section
+    st.markdown('<div class="hero-container">', unsafe_allow_html=True)
+    st.markdown('<p class="hero-title">Turbulence Analysis Suite</p>', unsafe_allow_html=True)
+    st.markdown('<p class="hero-subtitle">Time series processing for space plasma physics</p>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # Row 1
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Spectral Analysis</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>Welch PSD</strong> estimation with configurable windowing. '
+                'Analysis of spectral indices <strong>α</strong> across inertial and kinetic ranges.</p>',
+                unsafe_allow_html=True
+            )
+    
+    with col2:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Stochastic Dynamics</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>PDFs & Moments</strong> computation. '
+                'Quantification of non-Gaussianity via Kurtosis <strong>κ</strong> and Skewness <strong>S</strong>.</p>',
+                unsafe_allow_html=True
+            )
+    
+    with col3:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Dissipation Proxies</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>J·E\'</strong> analysis for energy conversion. '
+                'Detection of EDR/IDR signatures and reconnection events.</p>',
+                unsafe_allow_html=True
+            )
+    
+    # Row 2
+    col4, col5, col6 = st.columns(3)
+    
+    with col4:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Coherent Structures</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>PVI Method</strong> for discontinuity detection. '
+                'Identification of current sheets, flux ropes, and dipolarization fronts.</p>',
+                unsafe_allow_html=True
+            )
+    
+    with col5:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Wave Modes</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>Compressibility</strong> and magnetic helicity analysis. '
+                'Identification of Kinetic Alfvén Waves (KAW).</p>',
+                unsafe_allow_html=True
+            )
+    
+    with col6:
+        with st.container(border=True):
+            st.markdown('<p class="card-title">Signal Integrity</p>', unsafe_allow_html=True)
+            st.markdown(
+                '<p class="card-desc"><strong>Stationarity tests</strong> (ADF), outlier despiking, '
+                'and linear interpolation for data gaps.</p>',
+                unsafe_allow_html=True
+            )
+    
+    st.divider()
+    
+    # Footer
+    st.markdown('<p class="glass-footer">Select a dataset from the sidebar to begin analysis</p>', unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -366,9 +363,7 @@ def main():
         meta = var_metadata.get(raw_name, {})
         return meta.get('label', raw_name)
     
-    # ========================================================================
     # TIME SERIES MODE
-    # ========================================================================
     if mode == "Time Series":
         st.markdown("### Time Series Inspector")
         
@@ -410,9 +405,7 @@ def main():
             for key, val in list(attrs.items())[:10]:
                 st.text(f"{key}: {str(val)[:80]}")
     
-    # ========================================================================
     # SPECTRAL ANALYSIS MODE
-    # ========================================================================
     else:
         st.markdown("### Spectral Analysis")
         
