@@ -6,6 +6,6 @@ cdflib>=1.2.0
 plotly>=5.18.0
 scipy>=1.11.0
 
-# Optional: NASA data download
-pyspedas>=1.4.0
-pytplot>=1.8.0
+# NASA CDAWeb data download
+cdasws>=1.8.0
+

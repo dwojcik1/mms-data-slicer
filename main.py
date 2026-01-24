@@ -431,17 +431,17 @@ def main():
     # ========================================================================
     else:
         st.sidebar.markdown("##### NASA CDAWeb Download")
-        st.sidebar.caption("Powered by PySPEDAS (MMS Team/NASA)")
+        st.sidebar.caption("Powered by CDAWeb (NASA/GSFC)")
         
-        # Check if pyspedas is available
+        # Check if cdasws is available
         try:
-            from downloader import check_pyspedas_available, load_fgm_pyspedas, format_trange
-            pyspedas_ok = check_pyspedas_available()
+            from downloader import check_cdasws_available, load_fgm_cdasws, format_trange
+            cdasws_ok = check_cdasws_available()
         except ImportError:
-            pyspedas_ok = False
+            cdasws_ok = False
         
-        if not pyspedas_ok:
-            st.sidebar.warning("PySPEDAS not installed. Run: pip install pyspedas")
+        if not cdasws_ok:
+            st.sidebar.warning("cdasws not installed. Run: pip install cdasws")
             if st.session_state.downloaded_df is None:
                 components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
             return
@@ -480,7 +480,7 @@ def main():
             
             with st.spinner(f"Downloading MMS{probe} FGM data from NASA..."):
                 try:
-                    df = load_fgm_pyspedas(
+                    df = load_fgm_cdasws(
                         trange=trange,
                         probe=probe,
                         data_rate=data_rate,
@@ -488,6 +488,7 @@ def main():
                         coord=coord
                     )
                     st.session_state.downloaded_df = df
+
                     st.session_state.data_source = 'pyspedas'
                     st.session_state.download_info = {
                         'probe': probe,

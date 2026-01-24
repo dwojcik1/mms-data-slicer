@@ -1,7 +1,7 @@
 """
-downloader.py - PySPEDAS Data Download Module
-===============================================
-Download MMS mission data directly from NASA CDAWeb.
+downloader.py - NASA CDAWeb Data Download Module
+==================================================
+Download MMS mission data directly from NASA CDAWeb using cdasws.
 """
 
 import pandas as pd
@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 import warnings
 
 
-def load_fgm_pyspedas(
+def load_fgm_cdasws(
     trange: List[str],
     probe: str = '1',
     data_rate: str = 'srvy',
@@ -19,7 +19,7 @@ def load_fgm_pyspedas(
     coord: str = 'gse'
 ) -> pd.DataFrame:
     """
-    Download MMS FGM (Fluxgate Magnetometer) data using PySPEDAS.
+    Download MMS FGM (Fluxgate Magnetometer) data using CDAWeb API.
     
     Args:
         trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
@@ -32,199 +32,115 @@ def load_fgm_pyspedas(
         DataFrame with DatetimeIndex and columns ['Bx', 'By', 'Bz', 'Bt']
     
     Raises:
-        ImportError: If pyspedas/pytplot not installed
+        ImportError: If cdasws not installed
         ValueError: If no data found for the specified parameters
     """
-    # Import here to avoid hard dependency
     try:
-        import pyspedas
-        from pyspedas.mms import fgm
-        import pytplot
+        from cdasws import CdasWs
     except ImportError as e:
         raise ImportError(
-            "PySPEDAS not installed. Install with: pip install pyspedas\n"
+            "cdasws not installed. Install with: pip install cdasws\n"
             f"Original error: {e}"
         )
     
-    # Suppress pyspedas warnings during load
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        
-        # Call pyspedas FGM loader
-        loaded_vars = fgm(
-            trange=trange,
-            probe=probe,
-            data_rate=data_rate,
-            level=level,
-            time_clip=True,
-            latest_version=True
+    # Initialize CDAWeb client
+    cdas = CdasWs()
+    
+    # Construct dataset ID
+    # Format: MMS1_FGM_SRVY_L2
+    dataset = f"MMS{probe}_FGM_{data_rate.upper()}_{level.upper()}"
+    
+    # Variable name for magnetic field
+    # Format: mms1_fgm_b_gse_srvy_l2
+    var_name = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
+    
+    # Parse time range
+    start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
+    
+    try:
+        # Get data from CDAWeb
+        status, data = cdas.get_data(
+            dataset,
+            [var_name],
+            start_time,
+            end_time
+        )
+    except Exception as e:
+        raise ValueError(
+            f"Failed to download data from CDAWeb: {e}\n"
+            f"Dataset: {dataset}, Variable: {var_name}"
         )
     
-    if not loaded_vars:
+    if data is None or len(data) == 0:
         raise ValueError(
             f"No FGM data found for MMS{probe} "
             f"({data_rate}/{level}) in range {trange[0]} to {trange[1]}. "
-            "Check time range and data availability on CDAWeb."
+            "Check time range and data availability."
         )
     
-    # Construct expected variable name pattern
-    var_name = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
-    
-    # Try to find the variable in loaded list
-    target_var = None
-    for v in loaded_vars:
-        if coord in v.lower() and 'fgm' in v.lower():
-            target_var = v
-            break
-    
-    # Fallback: try exact name
-    if target_var is None:
-        if var_name in loaded_vars:
-            target_var = var_name
-        elif loaded_vars:
-            # Use first loaded variable
-            target_var = loaded_vars[0]
-    
-    if target_var is None:
-        raise ValueError(
-            f"Could not identify FGM variable. Loaded: {loaded_vars}"
-        )
-    
-    # Extract data using pytplot
-    try:
-        data = pytplot.get_data(target_var)
-    except Exception as e:
-        raise ValueError(f"Failed to extract data from tplot variable: {e}")
-    
-    if data is None:
-        raise ValueError(f"No data in tplot variable: {target_var}")
-    
-    times = data.times
-    values = data.y
-    
-    if times is None or values is None or len(times) == 0:
-        raise ValueError("Empty data arrays returned from PySPEDAS")
-    
-    # Convert times (Unix epoch) to datetime
-    datetime_index = pd.to_datetime(times, unit='s', utc=True)
-    
-    # Determine column names based on shape
-    if len(values.shape) == 1:
-        columns = ['Bt']
-        values = values.reshape(-1, 1)
-    elif values.shape[1] == 3:
-        columns = ['Bx', 'By', 'Bz']
-    elif values.shape[1] == 4:
-        columns = ['Bx', 'By', 'Bz', 'Bt']
+    # Extract time and field data from xarray dataset
+    if hasattr(data, 'to_dataframe'):
+        # xarray dataset
+        df = data.to_dataframe()
+        if var_name in df.columns or any(var_name in str(c) for c in df.columns):
+            pass  # Already has the data
     else:
-        columns = [f'B{i}' for i in range(values.shape[1])]
+        # Dictionary-like response
+        times = None
+        values = None
+        
+        # Find time variable
+        for key in data.keys():
+            if 'epoch' in key.lower() or 'time' in key.lower():
+                times = data[key]
+                break
+        
+        # Find field variable
+        for key in data.keys():
+            if var_name in key.lower() or ('fgm' in key.lower() and 'b_' in key.lower()):
+                values = data[key]
+                break
+        
+        if times is None or values is None:
+            raise ValueError(f"Could not extract data. Keys available: {list(data.keys())}")
+        
+        # Convert to DataFrame
+        if hasattr(times, 'values'):
+            times = times.values
+        if hasattr(values, 'values'):
+            values = values.values
+        
+        datetime_index = pd.to_datetime(times)
+        
+        if len(values.shape) == 1:
+            columns = ['Bt']
+            values = values.reshape(-1, 1)
+        elif values.shape[1] == 3:
+            columns = ['Bx', 'By', 'Bz']
+        elif values.shape[1] == 4:
+            columns = ['Bx', 'By', 'Bz', 'Bt']
+        else:
+            columns = [f'B{i}' for i in range(values.shape[1])]
+        
+        df = pd.DataFrame(values, index=datetime_index, columns=columns)
     
-    # Create DataFrame
-    df = pd.DataFrame(values, index=datetime_index, columns=columns)
     df.index.name = 'time'
     
     # Add magnitude if not present
-    if 'Bt' not in df.columns and len(df.columns) >= 3:
+    if 'Bt' not in df.columns and 'Bx' in df.columns:
         df['Bt'] = np.sqrt(df['Bx']**2 + df['By']**2 + df['Bz']**2)
     
-    # Clean up tplot variables to free memory
-    try:
-        for v in loaded_vars:
-            pytplot.del_data(v)
-    except Exception:
-        pass
+    # Clean NaN/fill values
+    df = df.replace(-1e31, np.nan)  # Common CDF fill value
     
     return df
 
 
-def load_fpi_pyspedas(
-    trange: List[str],
-    probe: str = '1',
-    data_rate: str = 'fast',
-    level: str = 'l2',
-    datatype: str = 'dis-moms'
-) -> pd.DataFrame:
-    """
-    Download MMS FPI (Fast Plasma Investigation) data using PySPEDAS.
-    
-    Args:
-        trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
-        probe: MMS spacecraft number
-        data_rate: Data rate ('fast', 'brst')
-        level: Data level
-        datatype: 'dis-moms' for ions, 'des-moms' for electrons
-    
-    Returns:
-        DataFrame with velocity and density data
-    """
+def check_cdasws_available() -> bool:
+    """Check if cdasws is installed and importable."""
     try:
-        import pyspedas
-        from pyspedas.mms import fpi
-        import pytplot
-    except ImportError as e:
-        raise ImportError(f"PySPEDAS not installed: {e}")
-    
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        loaded_vars = fpi(
-            trange=trange,
-            probe=probe,
-            data_rate=data_rate,
-            level=level,
-            datatype=datatype,
-            time_clip=True
-        )
-    
-    if not loaded_vars:
-        raise ValueError(f"No FPI data found for the specified parameters")
-    
-    # Extract bulk velocity and density
-    species = 'i' if 'dis' in datatype else 'e'
-    vel_var = f"mms{probe}_d{species}s_bulkv_gse_{data_rate}"
-    n_var = f"mms{probe}_d{species}s_numberdensity_{data_rate}"
-    
-    result_dfs = []
-    
-    for var_pattern, prefix in [(vel_var, 'V'), (n_var, 'N')]:
-        for v in loaded_vars:
-            if var_pattern in v or prefix.lower() in v.lower():
-                try:
-                    data = pytplot.get_data(v)
-                    if data is not None and data.times is not None:
-                        times = pd.to_datetime(data.times, unit='s', utc=True)
-                        if len(data.y.shape) == 1:
-                            df = pd.DataFrame({prefix: data.y}, index=times)
-                        else:
-                            cols = [f'{prefix}{c}' for c in ['x', 'y', 'z'][:data.y.shape[1]]]
-                            df = pd.DataFrame(data.y, index=times, columns=cols)
-                        result_dfs.append(df)
-                except Exception:
-                    continue
-    
-    # Cleanup
-    try:
-        for v in loaded_vars:
-            pytplot.del_data(v)
-    except Exception:
-        pass
-    
-    if not result_dfs:
-        raise ValueError("Could not extract any FPI data")
-    
-    # Merge all dataframes
-    result = result_dfs[0]
-    for df in result_dfs[1:]:
-        result = result.join(df, how='outer')
-    
-    result.index.name = 'time'
-    return result
-
-
-def check_pyspedas_available() -> bool:
-    """Check if PySPEDAS is installed and importable."""
-    try:
-        import pyspedas
-        import pytplot
+        from cdasws import CdasWs
         return True
     except ImportError:
         return False
@@ -232,7 +148,7 @@ def check_pyspedas_available() -> bool:
 
 def format_trange(start_date, start_time, end_date, end_time) -> List[str]:
     """
-    Format date/time inputs into PySPEDAS trange format.
+    Format date/time inputs into trange format.
     
     Args:
         start_date: datetime.date object
@@ -250,3 +166,15 @@ def format_trange(start_date, start_time, end_date, end_time) -> List[str]:
         start_dt.strftime('%Y-%m-%d %H:%M:%S'),
         end_dt.strftime('%Y-%m-%d %H:%M:%S')
     ]
+
+
+def list_available_datasets(probe: str = '1') -> List[str]:
+    """List available MMS datasets for a given probe."""
+    try:
+        from cdasws import CdasWs
+        cdas = CdasWs()
+        datasets = cdas.get_datasets(observatoryGroup='MMS')
+        mms_datasets = [d['Id'] for d in datasets if f'MMS{probe}' in d['Id']]
+        return sorted(mms_datasets)
+    except Exception:
+        return []
