@@ -258,6 +258,9 @@ def cached_metadata(raw_name: str, units: str = '') -> dict:
 # ============================================================================
 
 def main():
+    # Apply dark theme CSS FIRST (before any content)
+    apply_custom_css()
+    
     # Sidebar
     st.sidebar.markdown("### Configuration")
     st.sidebar.markdown("##### Data Input")
@@ -268,6 +271,7 @@ def main():
         # Use components.html for full HTML/CSS rendering
         components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
         return
+
     
     # Apply standard styling for analysis mode
     apply_custom_css()
