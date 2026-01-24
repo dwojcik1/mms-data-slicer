@@ -25,48 +25,252 @@ from utils import (
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 from plots import create_time_series_plot, create_psd_plot, create_pdf_plot, create_stats_display
 
-# Apply responsive CSS
-apply_custom_css()
 
-# Additional minimal styling
-st.markdown("""
+# ============================================================================
+# Apple-Style Glassmorphism CSS
+# ============================================================================
+
+GLASS_CSS = """
 <style>
-    .scientific-header {
-        font-size: clamp(1.8rem, 3.5vw, 2.8rem);
-        font-weight: 600;
-        color: #1a1a2e;
-        margin-bottom: 0.25rem;
-        letter-spacing: -0.02em;
-    }
-    .scientific-subtitle {
-        font-size: clamp(1rem, 1.8vw, 1.2rem);
-        color: #4a4a68;
-        margin-bottom: 2rem;
-        font-weight: 400;
-    }
-    .card-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #1a1a2e;
-        margin-bottom: 0.5rem;
-    }
-    .card-desc {
-        font-size: 0.95rem;
-        color: #4a4a68;
-        line-height: 1.5;
-    }
-    .footer-text {
-        font-size: 0.9rem;
-        color: #6a6a8a;
-        text-align: center;
-        margin-top: 2rem;
-        padding: 1rem;
-    }
-    div[data-testid="stVerticalBlock"] > div[data-testid="element-container"]:has(.stContainer) {
-        padding: 0.5rem;
-    }
+/* Aurora Background */
+.stApp {
+    background: linear-gradient(135deg, 
+        #0a0a1a 0%, 
+        #1a1a3e 25%, 
+        #0d1f3c 50%, 
+        #1a0a2e 75%, 
+        #0a0a1a 100%);
+    background-size: 400% 400%;
+    animation: aurora 20s ease infinite;
+}
+
+@keyframes aurora {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+/* Hero Section */
+.hero-title {
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #ffffff 0%, #a8b5ff 50%, #7dd3fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-align: center;
+    margin-bottom: 0.5rem;
+    padding-top: 1rem;
+}
+
+.hero-subtitle {
+    font-size: clamp(1.1rem, 2vw, 1.6rem);
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.65);
+    text-align: center;
+    margin-bottom: 3rem;
+    letter-spacing: 0.01em;
+}
+
+/* Bento Grid Container */
+.bento-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 0 1rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Glass Card */
+.glass-card {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+}
+
+.glass-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 
+        0 16px 48px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-title {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.95);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+}
+
+.card-description {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.6);
+    flex-grow: 1;
+}
+
+.card-description strong {
+    color: rgba(168, 181, 255, 0.9);
+    font-weight: 500;
+}
+
+/* Footer */
+.glass-footer {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 1rem;
+    letter-spacing: 0.02em;
+}
+
+/* Divider */
+.glass-divider {
+    height: 1px;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.1) 20%, 
+        rgba(255, 255, 255, 0.1) 80%, 
+        transparent);
+    margin: 2rem auto;
+    max-width: 800px;
+}
+
+/* Sidebar Styling */
+[data-testid="stSidebar"] {
+    background: rgba(10, 10, 26, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-testid="stSidebar"] .stMarkdown {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Override Streamlit defaults for dark theme */
+.stApp [data-testid="stHeader"] {
+    background: transparent;
+}
+
+.stApp .block-container {
+    max-width: 100%;
+    padding-top: 2rem;
+}
+
+/* Metric cards in analysis mode */
+[data-testid="stMetric"] {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1rem;
+}
+
+[data-testid="stMetric"] label {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+[data-testid="stMetric"] [data-testid="stMetricValue"] {
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Radio buttons */
+.stRadio > div {
+    background: transparent;
+}
+
+.stRadio label {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
 </style>
-""", unsafe_allow_html=True)
+"""
+
+BENTO_GRID_HTML = """
+<div class="hero-title">Turbulence Analysis Suite</div>
+<div class="hero-subtitle">Time series processing for space plasma physics</div>
+
+<div class="glass-divider"></div>
+
+<div class="bento-grid">
+    <div class="glass-card">
+        <div class="card-title">Spectral Analysis</div>
+        <div class="card-description">
+            <strong>Welch PSD</strong> estimation with configurable windowing. 
+            Analysis of spectral indices <strong>α</strong> across inertial and kinetic ranges.
+            Reference slopes for Kolmogorov and kinetic turbulence.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Stochastic Dynamics</div>
+        <div class="card-description">
+            <strong>PDFs & Moments</strong> computation. Quantification of non-Gaussianity 
+            via Kurtosis <strong>κ</strong> and Skewness <strong>S</strong>. 
+            Structure functions for intermittency analysis.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Dissipation Proxies</div>
+        <div class="card-description">
+            <strong>J·E'</strong> analysis for energy conversion. Detection of 
+            EDR/IDR signatures, Hall fields, and magnetic reconnection events 
+            in kinetic-scale plasmas.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Coherent Structures</div>
+        <div class="card-description">
+            <strong>PVI Method</strong> (Partial Variance of Increments) for 
+            discontinuity detection. Identification of current sheets, 
+            flux ropes, and dipolarization fronts.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Wave Modes</div>
+        <div class="card-description">
+            <strong>Compressibility</strong> analysis and magnetic helicity σ<sub>m</sub>. 
+            Ratio δB<sub>⊥</sub>/δB<sub>∥</sub> for mode identification. 
+            Kinetic Alfvén Wave (KAW) signatures.
+        </div>
+    </div>
+    
+    <div class="glass-card">
+        <div class="card-title">Signal Integrity</div>
+        <div class="card-description">
+            <strong>Stationarity tests</strong> (ADF) for time series validation. 
+            Outlier removal via despiking algorithms. 
+            Linear interpolation for data gap handling.
+        </div>
+    </div>
+</div>
+
+<div class="glass-divider"></div>
+
+<div class="glass-footer">
+    Select a dataset from the sidebar to begin analysis
+</div>
+"""
 
 
 # ============================================================================
@@ -75,7 +279,6 @@ st.markdown("""
 
 @st.cache_data
 def cached_psd(data_tuple, time_tuple):
-    """Cached PSD computation."""
     data = np.array(data_tuple)
     time_data = np.array(time_tuple, dtype='datetime64[ns]')
     return compute_psd_welch(data, time_data)
@@ -83,19 +286,16 @@ def cached_psd(data_tuple, time_tuple):
 
 @st.cache_data  
 def cached_pdf(data_tuple, n_bins):
-    """Cached PDF computation."""
     return compute_pdf(np.array(data_tuple), n_bins=n_bins)
 
 
 @st.cache_data
 def cached_stats(data_tuple):
-    """Cached statistics computation."""
     return compute_statistics(np.array(data_tuple))
 
 
 @st.cache_data
 def cached_metadata(raw_name: str, units: str = '') -> dict:
-    """Cache variable metadata lookup."""
     meta = get_variable_metadata(raw_name, units)
     return {
         'raw_name': meta.raw_name,
@@ -113,81 +313,9 @@ def cached_metadata(raw_name: str, units: str = '') -> dict:
 # ============================================================================
 
 def show_landing_page():
-    """Render the scientific landing page."""
-    
-    # Header
-    st.markdown('<p class="scientific-header">Turbulence Analysis Suite</p>', unsafe_allow_html=True)
-    st.markdown('<p class="scientific-subtitle">Time series processing for space plasma physics.</p>', unsafe_allow_html=True)
-    
-    st.divider()
-    
-    # Feature Grid - Row 1
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        with st.container(border=True):
-            st.latex(r"\mathcal{P}(f): \text{Spectral Density \& Scaling}")
-            st.markdown(
-                '<p class="card-desc">Welch method estimation of PSD. '
-                'Analysis of spectral indices α in inertial and kinetic ranges.</p>',
-                unsafe_allow_html=True
-            )
-    
-    with col2:
-        with st.container(border=True):
-            st.latex(r"P(\delta B_\tau): \text{PDFs \& Moments}")
-            st.markdown(
-                '<p class="card-desc">Quantification of non-Gaussianity via Kurtosis κ '
-                'and Skewness S. Intermittency analysis via structure functions.</p>',
-                unsafe_allow_html=True
-            )
-    
-    with col3:
-        with st.container(border=True):
-            st.latex(r"\mathbf{J} \cdot \mathbf{E}': \text{Dissipation Proxies}")
-            st.markdown(
-                '<p class="card-desc">Detection of dissipation regions (EDR/IDR signatures), '
-                'Hall fields, and energy conversion events.</p>',
-                unsafe_allow_html=True
-            )
-    
-    # Feature Grid - Row 2
-    col4, col5, col6 = st.columns(3)
-    
-    with col4:
-        with st.container(border=True):
-            st.latex(r"\text{PVI}: \text{Discontinuity Detection}")
-            st.markdown(
-                '<p class="card-desc">Partial Variance of Increments (PVI) method for identifying '
-                'current sheets, flux ropes, and dipolarization fronts.</p>',
-                unsafe_allow_html=True
-            )
-    
-    with col5:
-        with st.container(border=True):
-            st.latex(r"\delta \mathbf{B}_{\perp} / \delta B_{\parallel}: \text{Wave Modes}")
-            st.markdown(
-                '<p class="card-desc">Compressibility analysis, magnetic helicity σ_m, '
-                'and identification of Kinetic Alfvén Waves (KAW).</p>',
-                unsafe_allow_html=True
-            )
-    
-    with col6:
-        with st.container(border=True):
-            st.latex(r"\mathbf{X}(t): \text{Signal Integrity}")
-            st.markdown(
-                '<p class="card-desc">Stationarity tests (ADF), outlier removal (despiking), '
-                'and linear interpolation of data gaps.</p>',
-                unsafe_allow_html=True
-            )
-    
-    st.divider()
-    
-    # Footer
-    st.markdown(
-        '<p class="footer-text">Load L2/Burst data via the sidebar to initialize the analysis pipeline.</p>',
-        unsafe_allow_html=True
-    )
+    """Render the glassmorphism landing page."""
+    st.markdown(GLASS_CSS, unsafe_allow_html=True)
+    st.markdown(BENTO_GRID_HTML, unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -195,10 +323,11 @@ def show_landing_page():
 # ============================================================================
 
 def main():
+    # Apply glass CSS globally
+    st.markdown(GLASS_CSS, unsafe_allow_html=True)
+    
     # Sidebar
     st.sidebar.markdown("### Configuration")
-    
-    # File Upload
     st.sidebar.markdown("##### Data Input")
     uploaded_file = st.sidebar.file_uploader("CDF File", type=['cdf'], label_visibility="collapsed")
     
@@ -214,23 +343,19 @@ def main():
         st.error(f"Error loading file: {e}")
         return
     
-    # Get time data
     time_data = loader.get_time_data()
     if time_data is None:
         st.error("No time variable detected in CDF file.")
         return
     
-    # Analysis Mode
     st.sidebar.markdown("##### Analysis Mode")
     mode = st.sidebar.radio("Mode", ["Time Series", "Spectral Analysis"], label_visibility="collapsed")
     
-    # Get available variables
     plottable_vars = loader.get_plottable_variables()
     if not plottable_vars:
         st.warning("No plottable variables found in file.")
         return
     
-    # Build metadata
     var_metadata = {}
     for var in plottable_vars:
         attrs = loader.get_variable_attributes(var)
@@ -308,11 +433,8 @@ def main():
                 'pressure': 'Pressure',
                 'other': 'Other'
             }
-            category = st.selectbox(
-                "Category", 
-                non_empty,
-                format_func=lambda x: category_labels.get(x, x.title())
-            )
+            category = st.selectbox("Category", non_empty,
+                                    format_func=lambda x: category_labels.get(x, x.title()))
             
             category_vars = categories.get(category, [])
             selected_var = st.selectbox("Variable", category_vars, format_func=format_var_label)
@@ -344,7 +466,6 @@ def main():
         with st.sidebar.expander("Method", expanded=True):
             method = st.radio("Analysis", ["PSD", "PDF", "Summary"], horizontal=True, label_visibility="collapsed")
         
-        # Info bar
         cols = st.columns(3)
         cols[0].metric("Variable", meta['short_label'])
         cols[1].metric("Samples", f"{len(analysis_data):,}")
@@ -352,7 +473,6 @@ def main():
         
         st.divider()
         
-        # PSD
         if method == "PSD":
             st.markdown(f"#### Power Spectral Density: {component_label}")
             
@@ -368,12 +488,11 @@ def main():
                                       title=title, psd_units=meta['psd_units'])
                 st.plotly_chart(fig, use_container_width=True)
                 
-                st.caption(f"Sampling frequency: {psd_result.sampling_frequency:.2f} Hz | Segment length: {psd_result.nperseg} pts")
+                st.caption(f"Sampling: {psd_result.sampling_frequency:.2f} Hz | Segments: {psd_result.nperseg} pts")
                 
             except Exception as e:
-                st.error(f"Computation error: {e}")
+                st.error(f"Error: {e}")
         
-        # PDF
         elif method == "PDF":
             st.markdown(f"#### Probability Distribution: {component_label}")
             
@@ -409,9 +528,8 @@ def main():
                 except Exception as e:
                     st.error(str(e))
         
-        # Summary
         else:
-            st.markdown(f"#### Analysis Summary: {meta['label']}")
+            st.markdown(f"#### Summary: {meta['label']}")
             
             step = max(1, len(time_data) // 8000)
             t_plot = time_data[::step]
