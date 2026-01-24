@@ -10,10 +10,11 @@ import streamlit.components.v1 as components
 # MUST be first Streamlit command
 st.set_page_config(
     page_title="MMS Turbulence Analysis Suite",
-    page_icon="",
+    page_icon="🛰️",
     layout="wide",
-    initial_sidebar_state="auto"
+    initial_sidebar_state="expanded"
 )
+
 
 import numpy as np
 
