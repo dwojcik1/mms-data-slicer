@@ -288,18 +288,32 @@ def render_dataframe_analysis(df, time_data):
         if sub and len(df) > pts:
             step = len(df) // pts
             plot_df = df.iloc[::step]
+            is_subsampled = True
         else:
             plot_df = df
+            is_subsampled = False
         
-        # Import the new publication-quality plotter
-        from plots import plot_magnetic_field
+        # Import the publication-quality plotter and config
+        from plots import plot_magnetic_field, PLOTLY_CONFIG
         
-        # Create unified magnetic field plot
-        fig = plot_magnetic_field(plot_df, title=title, height=550)
-        st.plotly_chart(fig, use_container_width=True)
+        # Create unified magnetic field plot with white background
+        fig = plot_magnetic_field(plot_df, title=title, height=580)
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
         # Show data summary
-        st.caption(f"Displaying {len(plot_df):,} of {len(df):,} points | Sampling: {1/(df.index[1] - df.index[0]).total_seconds():.1f} Hz" if len(df) > 1 else "")
+        if len(df) > 1:
+            sampling_hz = 1 / (df.index[1] - df.index[0]).total_seconds()
+            st.caption(f"Displaying {len(plot_df):,} of {len(df):,} points | Original sampling: {sampling_hz:.1f} Hz")
+        
+        # Subsample info notice
+        if is_subsampled:
+            st.info(
+                "ℹ️ **Note:** To maintain performance, large datasets are subsampled. "
+                "Adjust the **Points** slider in Settings (sidebar) to show more detail. "
+                "Use the camera icon (📷) in the plot toolbar to export a high-resolution PNG.",
+                icon="ℹ️"
+            )
+
 
     
     else:

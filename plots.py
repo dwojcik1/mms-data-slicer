@@ -42,26 +42,28 @@ BFIELD_COLORS = {
 def plot_magnetic_field(
     df,
     title: str = "Magnetic Field",
-    height: int = 500,
+    height: int = 550,
     show_grid: bool = True
 ):
     """
     Create publication-quality unified magnetic field plot (JGR/GRL style).
     
-    All components are plotted on a single figure with standardized colors:
+    White background ensures visibility of black |B| trace and clean PNG export.
+    
+    Colors:
     - Bx: Blue (#1f77b4)
-    - By: Green (#2ca02c)
+    - By: Green (#2ca02c)  
     - Bz: Red (#d62728)
-    - Bt/|B|: Black (#000000)
+    - |B|: Black (#000000)
     
     Args:
         df: DataFrame with DatetimeIndex and columns Bx, By, Bz, Bt
-        title: Dynamic title string (e.g., "MMS 1 | B | GSE | 11 January 2024 | 12:00:00 - 12:30:00")
+        title: Dynamic title string
         height: Plot height in pixels
-        show_grid: Whether to show vertical grid lines
+        show_grid: Whether to show grid lines
     
     Returns:
-        Plotly Figure object
+        Tuple of (Figure, config_dict) for st.plotly_chart
     """
     fig = go.Figure()
     
@@ -70,11 +72,11 @@ def plot_magnetic_field(
         'Bx': r'$B_x$',
         'By': r'$B_y$',
         'Bz': r'$B_z$',
-        'Bt': r'$|B|$',
+        'Bt': r'$|\mathbf{B}|$',
         'B0': r'$B_x$',
         'B1': r'$B_y$',
         'B2': r'$B_z$',
-        'B3': r'$|B|$',
+        'B3': r'$|\mathbf{B}|$',
     }
     
     # Plot each component with standardized colors
@@ -83,7 +85,7 @@ def plot_magnetic_field(
         label = label_map.get(col, col)
         
         # Use thick line for magnitude, thinner for components
-        width = 2.0 if col in ['Bt', 'B3'] else 1.5
+        width = 2.5 if col in ['Bt', 'B3'] else 1.8
         
         fig.add_trace(go.Scattergl(
             x=df.index,
@@ -94,62 +96,101 @@ def plot_magnetic_field(
             hovertemplate=f'{label}: %{{y:.3f}} nT<extra></extra>'
         ))
     
-    # Publication-quality layout
+    # Publication-quality WHITE THEME layout
     fig.update_layout(
-        template='plotly_white',
+        # Force white background for visibility and clean export
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(color='black', family='Arial, sans-serif'),
+        
+        # Large, bold title with LaTeX
         title=dict(
             text=title,
-            font=dict(size=14, family='Arial, sans-serif'),
+            font=dict(size=20, color='black'),
             x=0.5,
-            xanchor='center'
+            xanchor='center',
+            y=0.95
         ),
-        xaxis_title="Time (UTC)",
-        yaxis_title=r"$B$ (nT)",
+        
+        # Axis titles with LaTeX and proper sizing
+        xaxis_title=dict(
+            text=r"$\text{Epoch [UTC]}$",
+            font=dict(size=16, color='black')
+        ),
+        yaxis_title=dict(
+            text=r"$\mathbf{B}$ [nT]",
+            font=dict(size=16, color='black')
+        ),
+        
         height=height,
         hovermode='x unified',
+        
+        # Legend inside plot, large font
         legend=dict(
             orientation='h',
             yanchor='top',
-            y=0.99,
+            y=0.98,
             xanchor='right',
-            x=0.99,
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='rgba(0,0,0,0.2)',
+            x=0.98,
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='rgba(0,0,0,0.3)',
             borderwidth=1,
-            font=dict(size=12)
+            font=dict(size=14, color='black')
         ),
-        margin=dict(l=60, r=30, t=60, b=50),
+        
+        margin=dict(l=70, r=40, t=80, b=60),
     )
     
-    # Grid styling (publication standard)
-    if show_grid:
-        fig.update_xaxes(
-            showgrid=True,
-            gridcolor='lightgrey',
-            griddash='dash',
-            gridwidth=0.5,
-            tickfont=dict(size=11),
-            tickformat='%H:%M:%S',
-            minor=dict(showgrid=True, gridcolor='#f0f0f0', griddash='dot')
-        )
-        fig.update_yaxes(
-            showgrid=True,
-            gridcolor='lightgrey',
-            griddash='solid',
-            gridwidth=0.5,
-            tickfont=dict(size=11),
-            zeroline=True,
-            zerolinecolor='black',
-            zerolinewidth=1
-        )
-    else:
-        fig.update_xaxes(tickfont=dict(size=11))
-        fig.update_yaxes(tickfont=dict(size=11))
+    # Grid styling - very light grey
+    grid_color = '#E5E5E5'  # Light grey
     
-    # Add range slider for time navigation
+    fig.update_xaxes(
+        showgrid=show_grid,
+        gridcolor=grid_color,
+        gridwidth=1,
+        tickfont=dict(size=13, color='black'),
+        tickformat='%H:%M:%S',
+        title_standoff=15,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    fig.update_yaxes(
+        showgrid=show_grid,
+        gridcolor=grid_color,
+        gridwidth=1,
+        tickfont=dict(size=13, color='black'),
+        title_standoff=15,
+        zeroline=True,
+        zerolinecolor='rgba(0,0,0,0.3)',
+        zerolinewidth=1.5,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    # Range slider for time navigation
     fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04))
     
     return fig
+
+
+# Plotly config for high-resolution PNG export
+PLOTLY_CONFIG = {
+    'toImageButtonOptions': {
+        'format': 'png',
+        'filename': 'mms_magnetic_field',
+        'height': 800,
+        'width': 1400,
+        'scale': 2  # 2x resolution for publication quality
+    },
+    'displayModeBar': True,
+    'displaylogo': False,
+    'modeBarButtonsToRemove': ['lasso2d', 'select2d']
+}
 
 
 def create_time_series_plot(
