@@ -254,40 +254,290 @@ def cached_metadata(raw_name: str, units: str = '') -> dict:
 
 
 # ============================================================================
+# DataFrame Analysis (for PySPEDAS downloaded data)
+# ============================================================================
+
+def render_dataframe_analysis(df, time_data):
+    """Render analysis UI for DataFrame-based data (from PySPEDAS)."""
+    
+    st.sidebar.markdown("##### Analysis Mode")
+    mode = st.sidebar.radio("", ["Time Series", "Spectral"], label_visibility="collapsed", key="df_mode")
+    
+    columns = list(df.columns)
+    
+    if mode == "Time Series":
+        st.markdown("### Time Series Inspector")
+        
+        with st.sidebar.expander("Settings", expanded=True):
+            selected_cols = st.multiselect("Variables", columns, default=columns[:min(4, len(columns))])
+            sub = st.checkbox("Subsample", value=True, key="df_sub")
+            pts = st.slider("Points", 1000, 50000, 10000, key="df_pts") if sub else len(df)
+        
+        if not selected_cols:
+            st.caption("Select variables.")
+            return
+        
+        for col in selected_cols:
+            data = df[col].values
+            t = time_data
+            d = data
+            
+            if sub and len(t) > pts:
+                step = len(t) // pts
+                t = time_data[::step]
+                d = data[::step]
+            
+            fig = create_time_series_plot(t, d, title=col, ylabel=f"{col} (nT)")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    else:
+        st.markdown("### Spectral Analysis")
+        
+        with st.sidebar.expander("Variable", expanded=True):
+            selected_col = st.selectbox("Column", columns, key="df_col")
+        
+        data = df[selected_col].values
+        
+        with st.sidebar.expander("Method", expanded=True):
+            method = st.radio("", ["PSD", "PDF", "Summary"], horizontal=True, label_visibility="collapsed", key="df_method")
+        
+        cols = st.columns(3)
+        cols[0].metric("Variable", selected_col)
+        cols[1].metric("Samples", f"{len(data):,}")
+        cols[2].metric("NaN", f"{np.isnan(data).sum():,}")
+        st.divider()
+        
+        # Clean data
+        clean_data = data[~np.isnan(data)]
+        
+        if method == "PSD":
+            st.markdown(f"#### PSD: {selected_col}")
+            try:
+                psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+                fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
+                                      psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$")
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
+            except Exception as e:
+                st.error(str(e))
+        
+        elif method == "PDF":
+            st.markdown(f"#### PDF: {selected_col}")
+            c1, c2 = st.columns([3, 1])
+            bins = c1.slider("Bins", 20, 200, 50, key="df_bins")
+            logy = c2.checkbox("Log Y", key="df_logy")
+            
+            cp, cs = st.columns([2, 1])
+            with cp:
+                try:
+                    pdf = cached_pdf(tuple(clean_data), bins)
+                    fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} (nT)", log_y=logy)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(str(e))
+            with cs:
+                st.markdown("##### Statistics")
+                try:
+                    stats = cached_stats(tuple(clean_data))
+                    for n, v in create_stats_display(stats).items():
+                        st.metric(n, v)
+                except Exception as e:
+                    st.error(str(e))
+        
+        else:
+            st.markdown(f"#### Summary: {selected_col}")
+            step = max(1, len(time_data) // 8000)
+            fig = create_time_series_plot(time_data[::step], data[::step], 
+                                          title=selected_col, ylabel=f"{selected_col} (nT)", height=350)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("##### Statistics")
+                try:
+                    stats = cached_stats(tuple(clean_data))
+                    for n, v in list(create_stats_display(stats).items())[:6]:
+                        st.text(f"{n}: {v}")
+                except Exception as e:
+                    st.error(str(e))
+            with c2:
+                st.markdown("##### PSD")
+                try:
+                    psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+                    fig = create_psd_plot(psd.frequencies, psd.power, 
+                                          psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=300)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(str(e))
+
+
+# ============================================================================
 # Main Application
 # ============================================================================
+
 
 def main():
     # Apply dark theme CSS FIRST (before any content)
     apply_custom_css()
     
+    # Initialize session state for downloaded data
+    if 'downloaded_df' not in st.session_state:
+        st.session_state.downloaded_df = None
+    if 'data_source' not in st.session_state:
+        st.session_state.data_source = None
+    
     # Sidebar
-    st.sidebar.markdown("### Configuration")
-    st.sidebar.markdown("##### Data Input")
-    uploaded_file = st.sidebar.file_uploader("CDF File", type=['cdf'], label_visibility="collapsed")
+    st.sidebar.markdown("### Data Source")
     
-    # Landing page when no file uploaded
-    if uploaded_file is None:
-        # Use components.html for full HTML/CSS rendering
-        components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
+    # Data source tabs
+    source_mode = st.sidebar.radio(
+        "Source", 
+        ["Upload CDF", "Download from NASA"],
+        label_visibility="collapsed",
+        horizontal=True
+    )
+    
+    uploaded_file = None
+    loader = None
+    time_data = None
+    
+    # ========================================================================
+    # UPLOAD CDF MODE
+    # ========================================================================
+    if source_mode == "Upload CDF":
+        st.sidebar.markdown("##### Upload CDF File")
+        uploaded_file = st.sidebar.file_uploader("CDF", type=['cdf'], label_visibility="collapsed")
+        
+        if uploaded_file is None and st.session_state.downloaded_df is None:
+            components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
+            return
+        
+        if uploaded_file is not None:
+            st.session_state.data_source = 'cdf'
+            try:
+                loader = CDFLoader.from_uploaded_file(uploaded_file)
+                st.sidebar.caption(f"Loaded: {uploaded_file.name}")
+            except Exception as e:
+                st.error(f"Error: {e}")
+                return
+            
+            time_data = loader.get_time_data()
+            if time_data is None:
+                st.error("No time variable found.")
+                return
+    
+    # ========================================================================
+    # DOWNLOAD FROM NASA MODE
+    # ========================================================================
+    else:
+        st.sidebar.markdown("##### NASA CDAWeb Download")
+        st.sidebar.caption("Powered by PySPEDAS (MMS Team/NASA)")
+        
+        # Check if pyspedas is available
+        try:
+            from downloader import check_pyspedas_available, load_fgm_pyspedas, format_trange
+            pyspedas_ok = check_pyspedas_available()
+        except ImportError:
+            pyspedas_ok = False
+        
+        if not pyspedas_ok:
+            st.sidebar.warning("PySPEDAS not installed. Run: pip install pyspedas")
+            if st.session_state.downloaded_df is None:
+                components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
+            return
+        
+        # Time range selection
+        st.sidebar.markdown("###### Time Range")
+        
+        from datetime import date, time, timedelta
+        
+        # Default to yesterday for 1 hour
+        default_start = date.today() - timedelta(days=1)
+        default_end = date.today() - timedelta(days=1)
+        
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            start_date = st.date_input("Start Date", value=default_start, label_visibility="visible")
+            start_time = st.time_input("Start Time", value=time(12, 0), label_visibility="visible")
+        with col2:
+            end_date = st.date_input("End Date", value=default_end, label_visibility="visible")
+            end_time = st.time_input("End Time", value=time(12, 30), label_visibility="visible")
+        
+        # Configuration
+        st.sidebar.markdown("###### Configuration")
+        
+        cfg_col1, cfg_col2 = st.sidebar.columns(2)
+        with cfg_col1:
+            probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
+            data_rate = st.selectbox("Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
+        with cfg_col2:
+            level = st.selectbox("Level", ['l2', 'l1b', 'ql'], index=0)
+            coord = st.selectbox("Coord", ['gse', 'gsm', 'dmpa', 'bcs'], index=0)
+        
+        # Download button
+        if st.sidebar.button("Download FGM Data", type="primary", use_container_width=True):
+            trange = format_trange(start_date, start_time, end_date, end_time)
+            
+            with st.spinner(f"Downloading MMS{probe} FGM data from NASA..."):
+                try:
+                    df = load_fgm_pyspedas(
+                        trange=trange,
+                        probe=probe,
+                        data_rate=data_rate,
+                        level=level,
+                        coord=coord
+                    )
+                    st.session_state.downloaded_df = df
+                    st.session_state.data_source = 'pyspedas'
+                    st.session_state.download_info = {
+                        'probe': probe,
+                        'data_rate': data_rate,
+                        'level': level,
+                        'coord': coord.upper(),
+                        'trange': trange
+                    }
+                    st.sidebar.success(f"Downloaded {len(df):,} points")
+                except Exception as e:
+                    st.sidebar.error(f"Download failed: {e}")
+                    return
+        
+        # Show current data info
+        if st.session_state.downloaded_df is not None and st.session_state.data_source == 'pyspedas':
+            info = st.session_state.get('download_info', {})
+            st.sidebar.caption(
+                f"MMS{info.get('probe', '?')} FGM {info.get('coord', '')} "
+                f"({info.get('data_rate', '')}/{info.get('level', '')})"
+            )
+        
+        # If no data yet, show landing page
+        if st.session_state.downloaded_df is None:
+            components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
+            return
+    
+    # ========================================================================
+    # DATA ANALYSIS (Common to both modes)
+    # ========================================================================
+    
+    # Determine data source
+    if st.session_state.data_source == 'pyspedas' and st.session_state.downloaded_df is not None:
+        # Use downloaded DataFrame
+        df = st.session_state.downloaded_df
+        time_data = df.index.values.astype('datetime64[ns]')
+        
+        # Create a simple wrapper for DataFrame-based analysis
+        render_dataframe_analysis(df, time_data)
         return
-
     
-    # Apply standard styling for analysis mode
-    apply_custom_css()
-    
-    # Load CDF
-    try:
-        loader = CDFLoader.from_uploaded_file(uploaded_file)
-        st.sidebar.caption(f"Loaded: {uploaded_file.name}")
-    except Exception as e:
-        st.error(f"Error: {e}")
+    # CDF-based analysis continues below
+    if loader is None:
         return
     
-    time_data = loader.get_time_data()
     if time_data is None:
-        st.error("No time variable found.")
-        return
+        time_data = loader.get_time_data()
+        if time_data is None:
+            st.error("No time variable found.")
+            return
+
     
     st.sidebar.markdown("##### Mode")
     mode = st.sidebar.radio("", ["Time Series", "Spectral"], label_visibility="collapsed")
