@@ -38,6 +38,18 @@ BFIELD_COLORS = {
     'B3': '#000000',
 }
 
+# Velocity field colors (same scheme)
+VELOCITY_COLORS = {
+    'Vx': '#1f77b4',   # Blue
+    'Vy': '#2ca02c',   # Green
+    'Vz': '#d62728',   # Red  
+    'Vt': '#000000',   # Black
+    'V0': '#1f77b4',
+    'V1': '#2ca02c',
+    'V2': '#d62728',
+    'V3': '#000000',
+}
+
 
 def plot_magnetic_field(
     df,
@@ -195,7 +207,139 @@ PLOTLY_CONFIG = {
 }
 
 
+def plot_velocity_field(
+    df,
+    title: str = "Bulk Velocity",
+    species: str = "ion",
+    height: int = 500,
+    show_grid: bool = True
+):
+    """
+    Create publication-quality velocity field plot for FPI data.
+    
+    Same color scheme as magnetic field:
+    - Vx: Blue (#1f77b4)
+    - Vy: Green (#2ca02c)  
+    - Vz: Red (#d62728)
+    - |V|: Black (#000000)
+    
+    Args:
+        df: DataFrame with DatetimeIndex and columns Vx, Vy, Vz, Vt
+        title: Dynamic title string
+        species: 'ion' or 'electron' for appropriate labeling
+        height: Plot height in pixels
+        show_grid: Whether to show grid lines
+    
+    Returns:
+        Plotly Figure object
+    """
+    fig = go.Figure()
+    
+    # HTML subscript labels for legend
+    label_map = {
+        'Vx': 'V<sub>x</sub>',
+        'Vy': 'V<sub>y</sub>',
+        'Vz': 'V<sub>z</sub>',
+        'Vt': '|<b>V</b>|',
+        'V0': 'V<sub>x</sub>',
+        'V1': 'V<sub>y</sub>',
+        'V2': 'V<sub>z</sub>',
+        'V3': '|<b>V</b>|',
+    }
+    
+    # Plot each component
+    for col in df.columns:
+        color = VELOCITY_COLORS.get(col, COLORS[0])
+        label = label_map.get(col, col)
+        width = 2.5 if col in ['Vt', 'V3'] else 1.8
+        
+        fig.add_trace(go.Scattergl(
+            x=df.index,
+            y=df[col].values,
+            mode='lines',
+            name=label,
+            line=dict(color=color, width=width),
+            hovertemplate=f'{label}: %{{y:.1f}} km/s<extra></extra>'
+        ))
+    
+    # Y-axis label based on species
+    if species == 'electron':
+        ylabel = '<b>V</b><sub>e</sub> [km/s]'
+    else:
+        ylabel = '<b>V</b><sub>i</sub> [km/s]'
+    
+    # Publication-quality WHITE THEME layout
+    fig.update_layout(
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(color='black', family='Arial, sans-serif'),
+        title=dict(
+            text=title,
+            font=dict(size=18, color='black'),
+            x=0.5,
+            xanchor='center',
+            y=0.95
+        ),
+        xaxis_title=dict(
+            text="Epoch [UTC]",
+            font=dict(size=14, color='black')
+        ),
+        yaxis_title=dict(
+            text=ylabel,
+            font=dict(size=14, color='black')
+        ),
+        height=height,
+        hovermode='x unified',
+        legend=dict(
+            orientation='h',
+            yanchor='top',
+            y=0.98,
+            xanchor='right',
+            x=0.98,
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='rgba(0,0,0,0.3)',
+            borderwidth=1,
+            font=dict(size=12, color='black')
+        ),
+        margin=dict(l=60, r=30, t=60, b=50),
+    )
+    
+    # Grid styling
+    grid_color = '#E5E5E5'
+    
+    fig.update_xaxes(
+        showgrid=show_grid,
+        gridcolor=grid_color,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        tickformat='%H:%M:%S',
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    fig.update_yaxes(
+        showgrid=show_grid,
+        gridcolor=grid_color,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        zeroline=True,
+        zerolinecolor='rgba(0,0,0,0.3)',
+        zerolinewidth=1.5,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04))
+    
+    return fig
+
+
 def create_time_series_plot(
+
     time_data, 
     data, 
     title="Time Series", 
