@@ -67,17 +67,18 @@ def plot_magnetic_field(
     """
     fig = go.Figure()
     
-    # LaTeX-style labels for legend
+    # HTML subscript labels for legend (LaTeX unreliable in Streamlit)
     label_map = {
-        'Bx': r'$B_x$',
-        'By': r'$B_y$',
-        'Bz': r'$B_z$',
-        'Bt': r'$|\mathbf{B}|$',
-        'B0': r'$B_x$',
-        'B1': r'$B_y$',
-        'B2': r'$B_z$',
-        'B3': r'$|\mathbf{B}|$',
+        'Bx': 'B<sub>x</sub>',
+        'By': 'B<sub>y</sub>',
+        'Bz': 'B<sub>z</sub>',
+        'Bt': '|<b>B</b>|',
+        'B0': 'B<sub>x</sub>',
+        'B1': 'B<sub>y</sub>',
+        'B2': 'B<sub>z</sub>',
+        'B3': '|<b>B</b>|',
     }
+
     
     # Plot each component with standardized colors
     for col in df.columns:
