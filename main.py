@@ -309,8 +309,14 @@ def render_dataframe_analysis(df, time_data):
         # Create unified magnetic field plot with white background
         fig = plot_magnetic_field(plot_df, title=title, height=580)
         
-        # Render with MathJax support for LaTeX labels
-        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+        # Render with MathJax support for LaTeX labels (force CDN loading)
+        st.plotly_chart(
+            fig, 
+            use_container_width=True, 
+            config=PLOTLY_CONFIG,
+            kwargs={'include_mathjax': 'cdn'}
+        )
+
         
         # Show data summary
         if len(df) > 1:
