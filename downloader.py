@@ -7,7 +7,7 @@ Download MMS mission data directly from NASA CDAWeb using cdasws.
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional
 import warnings
 
 
@@ -37,6 +37,7 @@ def load_fgm_cdasws(
     """
     try:
         from cdasws import CdasWs
+        from cdasws.datarepresentation import DataRepresentation
     except ImportError as e:
         raise ImportError(
             "cdasws not installed. Install with: pip install cdasws\n"
@@ -59,12 +60,13 @@ def load_fgm_cdasws(
     end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
     
     try:
-        # Get data from CDAWeb
+        # Get data from CDAWeb in xarray format
         status, data = cdas.get_data(
             dataset,
             [var_name],
             start_time,
-            end_time
+            end_time,
+            dataRepresentation=DataRepresentation.XARRAY
         )
     except Exception as e:
         raise ValueError(
@@ -72,59 +74,55 @@ def load_fgm_cdasws(
             f"Dataset: {dataset}, Variable: {var_name}"
         )
     
-    if data is None or len(data) == 0:
+    if data is None:
         raise ValueError(
             f"No FGM data found for MMS{probe} "
             f"({data_rate}/{level}) in range {trange[0]} to {trange[1]}. "
             "Check time range and data availability."
         )
     
-    # Extract time and field data from xarray dataset
-    if hasattr(data, 'to_dataframe'):
-        # xarray dataset
-        df = data.to_dataframe()
-        if var_name in df.columns or any(var_name in str(c) for c in df.columns):
-            pass  # Already has the data
-    else:
-        # Dictionary-like response
-        times = None
-        values = None
-        
-        # Find time variable
-        for key in data.keys():
-            if 'epoch' in key.lower() or 'time' in key.lower():
-                times = data[key]
-                break
-        
-        # Find field variable
-        for key in data.keys():
-            if var_name in key.lower() or ('fgm' in key.lower() and 'b_' in key.lower()):
-                values = data[key]
-                break
-        
-        if times is None or values is None:
-            raise ValueError(f"Could not extract data. Keys available: {list(data.keys())}")
-        
-        # Convert to DataFrame
-        if hasattr(times, 'values'):
-            times = times.values
-        if hasattr(values, 'values'):
-            values = values.values
-        
-        datetime_index = pd.to_datetime(times)
-        
-        if len(values.shape) == 1:
-            columns = ['Bt']
-            values = values.reshape(-1, 1)
-        elif values.shape[1] == 3:
-            columns = ['Bx', 'By', 'Bz']
-        elif values.shape[1] == 4:
-            columns = ['Bx', 'By', 'Bz', 'Bt']
+    # Extract data from xarray Dataset
+    if var_name not in data:
+        # Try to find a matching variable
+        matching_vars = [k for k in data.keys() if 'fgm' in k.lower() and 'b_' in k.lower()]
+        if matching_vars:
+            var_name = matching_vars[0]
         else:
-            columns = [f'B{i}' for i in range(values.shape[1])]
-        
-        df = pd.DataFrame(values, index=datetime_index, columns=columns)
+            raise ValueError(f"Variable {var_name} not found. Available: {list(data.keys())}")
     
+    # Get the data array
+    da = data[var_name]
+    
+    # Extract time coordinate
+    time_dim = None
+    for dim in da.dims:
+        if 'epoch' in dim.lower() or 'time' in dim.lower():
+            time_dim = dim
+            break
+    
+    if time_dim is None:
+        # Use the first dimension as time
+        time_dim = da.dims[0]
+    
+    times = da.coords[time_dim].values
+    values = da.values
+    
+    # Convert times to datetime
+    datetime_index = pd.to_datetime(times)
+    
+    # Determine column names based on shape
+    if len(values.shape) == 1:
+        columns = ['Bt']
+        values = values.reshape(-1, 1)
+    elif values.shape[1] == 3:
+        columns = ['Bx', 'By', 'Bz']
+    elif values.shape[1] == 4:
+        columns = ['Bx', 'By', 'Bz', 'Bt']
+    else:
+        columns = [f'B{i}' for i in range(values.shape[1])]
+    
+    # Create DataFrame
+    df = pd.DataFrame(values, index=datetime_index, columns=columns)
     df.index.name = 'time'
     
     # Add magnitude if not present
@@ -141,6 +139,7 @@ def check_cdasws_available() -> bool:
     """Check if cdasws is installed and importable."""
     try:
         from cdasws import CdasWs
+        from cdasws.datarepresentation import DataRepresentation
         return True
     except ImportError:
         return False
