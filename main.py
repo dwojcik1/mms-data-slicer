@@ -569,7 +569,7 @@ MMS_INSTRUMENTS = {
     "Fluxgate Magnetometer (FGM)": {"key": "fgm", "active": True},
     "Fast Plasma Investigation (FPI)": {"key": "fpi", "active": True},
     "Search Coil Magnetometer (SCM)": {"key": "scm", "active": False},
-    "Fluxgate Search Coil (FSM)": {"key": "fsm", "active": False},
+    "FGM+SCM Data (FSM)": {"key": "fsm", "active": False},
     "Electric Field Double Probe (EDP)": {"key": "edp", "active": False},
     "Electron Drift Instrument (EDI)": {"key": "edi", "active": False},
     "Fly's Eye Energetic Particle Sensor (FEEPS)": {"key": "feeps", "active": False},
