@@ -564,366 +564,474 @@ def render_dataframe_analysis(df, time_data):
 # Main Application
 # ============================================================================
 
+# MMS Instrument catalog
+MMS_INSTRUMENTS = {
+    "Fluxgate Magnetometer (FGM)": {"key": "fgm", "active": True},
+    "Fast Plasma Investigation (FPI)": {"key": "fpi", "active": True},
+    "Search Coil Magnetometer (SCM)": {"key": "scm", "active": False},
+    "Fluxgate Search Coil (FSM)": {"key": "fsm", "active": False},
+    "Electric Field Double Probe (EDP)": {"key": "edp", "active": False},
+    "Electron Drift Instrument (EDI)": {"key": "edi", "active": False},
+    "Fly's Eye Energetic Particle Sensor (FEEPS)": {"key": "feeps", "active": False},
+    "Energetic Ion Spectrometer (EIS)": {"key": "eis", "active": False},
+    "Active Spacecraft Potential Control (ASPOC)": {"key": "aspoc", "active": False},
+    "Hot Plasma Composition Analyzer (HPCA)": {"key": "hpca", "active": False},
+    "Mechanisms (MEC)": {"key": "mec", "active": False},
+    "Ephemeris and Coordinates (STATE)": {"key": "state", "active": False},
+    "Time Quality Factors (TQF)": {"key": "tqf", "active": False},
+}
 
-def main():
-    # Apply dark theme CSS FIRST (before any content)
-    apply_custom_css()
+
+def render_data_loader():
+    """Render the main page data configuration wizard."""
     
-    # Initialize session state for downloaded data
-    if 'downloaded_df' not in st.session_state:
-        st.session_state.downloaded_df = None
-    if 'data_source' not in st.session_state:
-        st.session_state.data_source = None
+    st.markdown("## 📡 Data Configuration")
+    st.markdown("Select your data source and configure the download parameters.")
     
-    # Sidebar
-    st.sidebar.markdown("### Data Source")
-    
-    # Data source tabs
-    source_mode = st.sidebar.radio(
-        "Source", 
-        ["Upload CDF", "Download from NASA"],
-        label_visibility="collapsed",
-        horizontal=True
+    # Data source selection
+    data_source = st.radio(
+        "Data Source",
+        ["Download from NASA CDAWeb", "Upload own .CDF files"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
     
-    uploaded_file = None
-    loader = None
-    time_data = None
+    st.divider()
     
-    # ========================================================================
-    # UPLOAD CDF MODE
-    # ========================================================================
-    if source_mode == "Upload CDF":
-        st.sidebar.markdown("##### Upload CDF File")
-        uploaded_file = st.sidebar.file_uploader("CDF", type=['cdf'], label_visibility="collapsed")
-        
-        if uploaded_file is None and st.session_state.downloaded_df is None:
-            components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
-            return
-        
-        if uploaded_file is not None:
-            st.session_state.data_source = 'cdf'
-            try:
-                loader = CDFLoader.from_uploaded_file(uploaded_file)
-                st.sidebar.caption(f"Loaded: {uploaded_file.name}")
-            except Exception as e:
-                st.error(f"Error: {e}")
-                return
-            
-            time_data = loader.get_time_data()
-            if time_data is None:
-                st.error("No time variable found.")
-                return
-    
-    # ========================================================================
-    # DOWNLOAD FROM NASA MODE
-    # ========================================================================
+    if data_source == "Download from NASA CDAWeb":
+        render_nasa_download_form()
     else:
-        st.sidebar.markdown("##### NASA CDAWeb Download")
-        st.sidebar.caption("Powered by CDAWeb (NASA/GSFC)")
-        
-        # Check if cdasws is available
-        try:
-            from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
-            cdasws_ok = check_cdasws_available()
-        except ImportError:
-            cdasws_ok = False
-        
-        if not cdasws_ok:
-            st.sidebar.warning("cdasws not installed. Run: pip install cdasws")
-            if st.session_state.downloaded_df is None:
-                components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
-            return
-        
-        # Instrument selection
-        st.sidebar.markdown("###### Instrument")
-        instrument = st.sidebar.selectbox(
-            "Select Instrument",
-            ["Fluxgate Magnetometer (FGM)", "Fast Plasma Investigation (FPI)"],
-            label_visibility="collapsed"
-        )
-        instrument_key = 'fgm' if 'FGM' in instrument else 'fpi'
-        
-        # Time range selection
-        st.sidebar.markdown("###### Time Range")
-        
-        from datetime import date, time, timedelta
-        
+        render_upload_form()
+
+
+def render_nasa_download_form():
+    """Render the NASA CDAWeb download configuration form."""
+    
+    # Check if cdasws is available
+    try:
+        from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
+        cdasws_ok = check_cdasws_available()
+    except ImportError:
+        cdasws_ok = False
+    
+    if not cdasws_ok:
+        st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
+        return
+    
+    # Instrument selection
+    st.markdown("### 🛰️ Instrument Selection")
+    
+    instrument_name = st.selectbox(
+        "Select Instrument",
+        list(MMS_INSTRUMENTS.keys()),
+        index=0
+    )
+    
+    instrument_info = MMS_INSTRUMENTS[instrument_name]
+    instrument_key = instrument_info["key"]
+    is_active = instrument_info["active"]
+    
+    if not is_active:
+        st.info(f"🔜 **Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI", icon="ℹ️")
+        return
+    
+    # Time & Parameters section
+    st.markdown("### ⏱️ Time Range & Parameters")
+    
+    from datetime import date, time, timedelta
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        st.markdown("**Start**")
         default_start = date.today() - timedelta(days=1)
+        start_date = st.date_input("Start Date", value=default_start, label_visibility="collapsed")
+        start_time = st.time_input("Start Time", value=time(12, 0), label_visibility="collapsed")
+    
+    with col2:
+        st.markdown("**End**")
         default_end = date.today() - timedelta(days=1)
-        
-        col1, col2 = st.sidebar.columns(2)
-        with col1:
-            start_date = st.date_input("Start Date", value=default_start, label_visibility="visible")
-            start_time = st.time_input("Start Time", value=time(12, 0), label_visibility="visible")
-        with col2:
-            end_date = st.date_input("End Date", value=default_end, label_visibility="visible")
-            end_time = st.time_input("End Time", value=time(12, 30), label_visibility="visible")
-        
-        # Configuration
-        st.sidebar.markdown("###### Configuration")
-        
-        cfg_col1, cfg_col2 = st.sidebar.columns(2)
-        with cfg_col1:
-            probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
-            # Data rate options depend on instrument
-            if instrument_key == 'fgm':
-                data_rate = st.selectbox("Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
-            else:
-                data_rate = st.selectbox("Rate", ['fast', 'brst'], index=0)
-        with cfg_col2:
-            level = st.selectbox("Level", ['l2'], index=0)
-            coord = st.selectbox("Coord", ['gse', 'gsm'], index=0)
-        
-        # Download button
-        btn_label = f"Download {instrument_key.upper()} Data"
-        if st.sidebar.button(btn_label, type="primary", use_container_width=True):
-            trange = format_trange(start_date, start_time, end_date, end_time)
-            
-            with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA..."):
-                try:
-                    if instrument_key == 'fgm':
-                        df = load_fgm_cdasws(
-                            trange=trange,
-                            probe=probe,
-                            data_rate=data_rate,
-                            level=level,
-                            coord=coord
-                        )
-                        # Wrap in dict for consistent handling
-                        st.session_state.downloaded_df = {'FGM': df}
-                    else:
-                        # FPI returns dict with DIS and DES keys
-                        datasets = load_fpi_cdasws(
-                            trange=trange,
-                            probe=probe,
-                            data_rate=data_rate,
-                            level=level,
-                            coord=coord
-                        )
-                        st.session_state.downloaded_df = datasets
-
-                    st.session_state.data_source = 'pyspedas'
-                    st.session_state.download_info = {
-                        'probe': probe,
-                        'data_rate': data_rate,
-                        'level': level,
-                        'coord': coord.upper(),
-                        'trange': trange,
-                        'instrument': instrument_key.upper()
-                    }
-                    
-                    # Count total points
-                    total_pts = sum(len(v) for v in st.session_state.downloaded_df.values())
-                    st.sidebar.success(f"Downloaded {total_pts:,} points ({len(st.session_state.downloaded_df)} dataset(s))")
-                except Exception as e:
-                    st.sidebar.error(f"Download failed: {e}")
-                    return
-        
-        # Show current data info
-        if st.session_state.downloaded_df is not None and st.session_state.data_source == 'pyspedas':
-            info = st.session_state.get('download_info', {})
-            st.sidebar.caption(
-                f"MMS{info.get('probe', '?')} {info.get('instrument', 'FGM')} {info.get('coord', '')} "
-                f"({info.get('data_rate', '')}/{info.get('level', '')})"
-            )
-        
-        # If no data yet, show landing page
-        if st.session_state.downloaded_df is None:
-            components.html(LANDING_PAGE_HTML, height=850, scrolling=True)
-            return
-
+        end_date = st.date_input("End Date", value=default_end, label_visibility="collapsed")
+        end_time = st.time_input("End Time", value=time(12, 30), label_visibility="collapsed")
     
-    # ========================================================================
-    # DATA ANALYSIS (Common to both modes)
-    # ========================================================================
-    
-    # Determine data source
-    if st.session_state.data_source == 'pyspedas' and st.session_state.downloaded_df is not None:
-        # downloaded_df is now a dict: {'FGM': df} or {'DIS': df, 'DES': df}
-        datasets = st.session_state.downloaded_df
-        info = st.session_state.get('download_info', {})
-        instrument = info.get('instrument', 'FGM')
+    with col3:
+        st.markdown("**Configuration**")
+        probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
         
-        # Render analysis for each dataset
-        render_multi_dataset_analysis(datasets, info)
-        return
-
-    
-    # CDF-based analysis continues below
-    if loader is None:
-        return
-    
-    if time_data is None:
-        time_data = loader.get_time_data()
-        if time_data is None:
-            st.error("No time variable found.")
-            return
-
-    
-    st.sidebar.markdown("##### Mode")
-    mode = st.sidebar.radio("", ["Time Series", "Spectral"], label_visibility="collapsed")
-    
-    plottable_vars = loader.get_plottable_variables()
-    if not plottable_vars:
-        st.warning("No plottable variables.")
-        return
-    
-    var_metadata = {}
-    for var in plottable_vars:
-        attrs = loader.get_variable_attributes(var)
-        units = attrs.get('UNITS', '') if isinstance(attrs.get('UNITS'), str) else ''
-        var_metadata[var] = cached_metadata(var, units)
-    
-    fmt = lambda x: var_metadata.get(x, {}).get('label', x)
-    
-    # ========================================================================
-    # TIME SERIES MODE
-    # ========================================================================
-    if mode == "Time Series":
-        st.markdown("### Time Series Inspector")
-        
-        with st.sidebar.expander("Settings", expanded=True):
-            sel = st.multiselect("Variables", plottable_vars, 
-                                 default=plottable_vars[:min(3, len(plottable_vars))], format_func=fmt)
-            sub = st.checkbox("Subsample", value=True)
-            pts = st.slider("Points", 1000, 50000, 10000) if sub else len(time_data)
-        
-        if not sel:
-            st.caption("Select variables from the sidebar.")
-            return
-        
-        for var in sel:
-            data = loader.get_variable_data(var)
-            if data is None: 
-                continue
-            meta = var_metadata[var]
-            ylabel = f"{meta['short_label']} ({meta['units']})" if meta['units'] else meta['short_label']
-            t, d = time_data, data
-            if sub and len(time_data) > pts:
-                step = len(time_data) // pts
-                t = time_data[::step]
-                d = data[::step] if len(data.shape) == 1 else data[::step, :]
-            fig = create_time_series_plot(t, d, title=meta['label'], ylabel=ylabel, 
-                                          component_labels=meta.get('components'))
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with st.expander("Metadata"):
-            attrs = loader.get_global_attributes()
-            for key, val in list(attrs.items())[:10]:
-                st.text(f"{key}: {str(val)[:80]}")
-    
-    # ========================================================================
-    # SPECTRAL ANALYSIS MODE
-    # ========================================================================
-    else:
-        st.markdown("### Spectral Analysis")
-        
-        with st.sidebar.expander("Variable", expanded=True):
-            cats = loader.get_physics_variables()
-            non_empty = [k for k, v in cats.items() if v]
-            if not non_empty:
-                st.caption("No variables detected.")
-                return
-            cat = st.selectbox("Category", non_empty, 
-                               format_func=lambda x: x.replace('_', ' ').title())
-            var = st.selectbox("Variable", cats.get(cat, []), format_func=fmt)
-        
-        meta = var_metadata[var]
-        vdata = loader.get_variable_data(var)
-        vinfo = loader.classify_variable(var)
-        
-        if vdata is None:
-            st.error("Failed to load variable.")
-            return
-        
-        comp, comp_label = None, meta['short_label']
-        if vinfo['type'] == 'vector':
-            with st.sidebar.expander("Component", expanded=True):
-                opts = ['X', 'Y', 'Z'][:vinfo['n_components']] + ['Magnitude']
-                comp = st.radio("", opts, horizontal=True, label_visibility="collapsed")
-            adata = extract_component(vdata, comp)
-            cidx = {'X': 0, 'Y': 1, 'Z': 2, 'Magnitude': 3}.get(comp, 0)
-            comp_label = meta['components'][cidx] if cidx < len(meta['components']) else comp
+        if instrument_key == 'fgm':
+            data_rate = st.selectbox("Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
         else:
-            adata = vdata
+            data_rate = st.selectbox("Rate", ['fast', 'brst'], index=0)
+    
+    # Additional config row
+    cfg1, cfg2, cfg3 = st.columns([1, 1, 2])
+    with cfg1:
+        level = st.selectbox("Level", ['l2'], index=0)
+    with cfg2:
+        coord = st.selectbox("Coordinates", ['gse', 'gsm'], index=0)
+    
+    st.markdown("")  # Spacer
+    
+    # Download button
+    if st.button(f"🚀 Download {instrument_key.upper()} Data", type="primary", use_container_width=True):
+        trange = format_trange(start_date, start_time, end_date, end_time)
         
-        with st.sidebar.expander("Method", expanded=True):
-            method = st.radio("", ["PSD", "PDF", "Summary"], horizontal=True, label_visibility="collapsed")
+        with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
+            try:
+                if instrument_key == 'fgm':
+                    df = load_fgm_cdasws(
+                        trange=trange,
+                        probe=probe,
+                        data_rate=data_rate,
+                        level=level,
+                        coord=coord
+                    )
+                    st.session_state.data = {'FGM': df}
+                else:
+                    datasets = load_fpi_cdasws(
+                        trange=trange,
+                        probe=probe,
+                        data_rate=data_rate,
+                        level=level,
+                        coord=coord
+                    )
+                    st.session_state.data = datasets
+                
+                st.session_state.data_loaded = True
+                st.session_state.download_info = {
+                    'probe': probe,
+                    'data_rate': data_rate,
+                    'level': level,
+                    'coord': coord.upper(),
+                    'trange': trange,
+                    'instrument': instrument_key.upper()
+                }
+                
+                total_pts = sum(len(v) for v in st.session_state.data.values())
+                st.success(f"✅ Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Download failed: {e}")
+    
+    # Footer disclaimer
+    st.markdown("---")
+    st.caption("📝 *Note: Data will not be saved to your local device unless explicitly requested.*")
+
+
+def render_upload_form():
+    """Render the CDF file upload form."""
+    
+    st.markdown("### 📁 Upload CDF File")
+    
+    uploaded_file = st.file_uploader(
+        "Drop your .CDF file here",
+        type=['cdf'],
+        help="Upload a CDF file from the MMS mission or other space physics data sources."
+    )
+    
+    if uploaded_file is not None:
+        try:
+            loader = CDFLoader.from_uploaded_file(uploaded_file)
+            time_data = loader.get_time_data()
+            
+            if time_data is None:
+                st.error("No time variable found in the CDF file.")
+                return
+            
+            # Store in session state
+            st.session_state.data = {'CDF': loader}
+            st.session_state.data_loaded = True
+            st.session_state.upload_info = {
+                'filename': uploaded_file.name,
+                'loader': loader
+            }
+            
+            st.success(f"✅ Loaded: {uploaded_file.name}")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"❌ Error loading file: {e}")
+
+
+def render_sidebar():
+    """Render the sidebar with settings and analysis navigation."""
+    
+    with st.sidebar:
+        st.markdown("### ⚙️ Settings")
         
-        cols = st.columns(3)
-        cols[0].metric("Variable", meta['short_label'])
-        cols[1].metric("Samples", f"{len(adata):,}")
-        cols[2].metric("Component", comp or "Scalar")
+        # Subsample factor at top
+        subsample_pts = st.slider(
+            "Subsample Points",
+            min_value=1000,
+            max_value=50000,
+            value=15000,
+            step=1000,
+            help="Number of points to display for performance",
+            key="global_subsample"
+        )
+        
         st.divider()
         
-        # PSD
-        if method == "PSD":
-            st.markdown(f"#### Power Spectral Density: {comp_label}")
-            try:
-                psd = cached_psd(tuple(adata.flatten()), 
-                                 tuple(time_data.astype('datetime64[ns]').astype(np.int64)))
-                fig = create_psd_plot(psd.frequencies, psd.power, 
-                                      title=f"PSD: {meta['label']}", psd_units=meta['psd_units'])
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg} pts")
-            except Exception as e:
-                st.error(str(e))
+        # Analysis mode navigation
+        st.markdown("### 📊 Analysis Mode")
         
-        # PDF
-        elif method == "PDF":
-            st.markdown(f"#### PDF: {comp_label}")
-            c1, c2 = st.columns([3, 1])
-            bins = c1.slider("Bins", 20, 200, 50)
-            logy = c2.checkbox("Log Y")
-            
-            cp, cs = st.columns([2, 1])
-            with cp:
-                try:
-                    pdf = cached_pdf(tuple(adata.flatten()), bins)
-                    xlabel = f"{comp_label} ({meta['units']})" if meta['units'] else comp_label
-                    fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=xlabel, log_y=logy)
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception as e:
-                    st.error(str(e))
-            with cs:
-                st.markdown("##### Statistics")
-                try:
-                    stats = cached_stats(tuple(adata.flatten()))
-                    for n, v in create_stats_display(stats).items():
-                        st.metric(n, v)
-                except Exception as e:
-                    st.error(str(e))
-        
-        # Summary
+        if st.session_state.get('data_loaded', False):
+            analysis_mode = st.radio(
+                "Select Analysis",
+                ["Time Series Inspector", "Power Spectral Density", "PDF & Moments", "Summary Statistics"],
+                label_visibility="collapsed",
+                key="analysis_mode"
+            )
         else:
-            st.markdown(f"#### Summary: {meta['label']}")
-            step = max(1, len(time_data) // 8000)
-            ylabel = f"{comp_label} ({meta['units']})" if meta['units'] else comp_label
-            fig = create_time_series_plot(time_data[::step], adata[::step], 
-                                          title=meta['label'], ylabel=ylabel, height=350)
-            st.plotly_chart(fig, use_container_width=True)
+            st.info("Load data to enable analysis", icon="ℹ️")
+            analysis_mode = None
+        
+        st.divider()
+        
+        # Load new data button
+        if st.session_state.get('data_loaded', False):
+            if st.button("🔄 Load New Data", use_container_width=True):
+                # Clear session state
+                st.session_state.data = None
+                st.session_state.data_loaded = False
+                st.session_state.download_info = {}
+                st.session_state.upload_info = {}
+                st.rerun()
             
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("##### Statistics")
-                try:
-                    stats = cached_stats(tuple(adata.flatten()))
-                    for n, v in list(create_stats_display(stats).items())[:6]:
-                        st.text(f"{n}: {v}")
-                except Exception as e:
-                    st.error(str(e))
-            with c2:
-                st.markdown("##### PSD Preview")
-                try:
-                    psd = cached_psd(tuple(adata.flatten()), 
-                                     tuple(time_data.astype('datetime64[ns]').astype(np.int64)))
-                    fig = create_psd_plot(psd.frequencies, psd.power, 
-                                          psd_units=meta['psd_units'], height=300)
-                    st.plotly_chart(fig, use_container_width=True)
-                except Exception as e:
-                    st.error(str(e))
+            # Show current data info
+            info = st.session_state.get('download_info', {})
+            if info:
+                st.caption(
+                    f"📍 MMS{info.get('probe', '?')} {info.get('instrument', '')} "
+                    f"{info.get('coord', '')} ({info.get('data_rate', '')}/{info.get('level', '')})"
+                )
+    
+    return analysis_mode, subsample_pts
+
+
+def render_analysis(analysis_mode: str, subsample_pts: int):
+    """Render the selected analysis view."""
+    
+    data = st.session_state.get('data', {})
+    info = st.session_state.get('download_info', {})
+    
+    if not data:
+        st.warning("No data loaded.")
+        return
+    
+    if analysis_mode == "Time Series Inspector":
+        render_time_series_analysis(data, info, subsample_pts)
+    elif analysis_mode == "Power Spectral Density":
+        render_psd_analysis(data, info)
+    elif analysis_mode == "PDF & Moments":
+        render_pdf_analysis(data, info)
+    elif analysis_mode == "Summary Statistics":
+        render_summary_analysis(data, info, subsample_pts)
+
+
+def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
+    """Render Time Series Inspector view."""
+    from plots import plot_magnetic_field, plot_velocity_field, PLOTLY_CONFIG
+    
+    probe = info.get('probe', '?')
+    coord = info.get('coord', 'GSE').upper()
+    
+    for key, df in datasets.items():
+        if df is None or len(df) == 0:
+            continue
+        
+        # Generate dynamic title
+        start_dt = df.index[0]
+        end_dt = df.index[-1]
+        
+        if start_dt.date() == end_dt.date():
+            date_str = start_dt.strftime('%d %B %Y')
+            time_range = f"{start_dt.strftime('%H:%M:%S')} – {end_dt.strftime('%H:%M:%S')}"
+        else:
+            date_str = f"{start_dt.strftime('%d %b %Y %H:%M')} – {end_dt.strftime('%d %b %Y %H:%M')}"
+            time_range = ""
+        
+        # Subsample
+        if len(df) > subsample_pts:
+            step = len(df) // subsample_pts
+            plot_df = df.iloc[::step]
+        else:
+            plot_df = df
+        
+        # Determine plot type
+        if key == 'FGM':
+            if time_range:
+                title = f"MMS {probe} | B | {coord} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | B | {coord} | {date_str}"
+            fig = plot_magnetic_field(plot_df, title=title, height=550)
+        elif key == 'DES':
+            if time_range:
+                title = f"MMS {probe} | Electron Velocity | {coord} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | V<sub>e</sub> | {coord} | {date_str}"
+            fig = plot_velocity_field(plot_df, title=title, species='electron', height=450)
+        elif key == 'DIS':
+            if time_range:
+                title = f"MMS {probe} | Ion Velocity | {coord} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | V<sub>i</sub> | {coord} | {date_str}"
+            fig = plot_velocity_field(plot_df, title=title, species='ion', height=450)
+        else:
+            continue
+        
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+        
+        if len(df) > 1:
+            try:
+                sampling_hz = 1 / (df.index[1] - df.index[0]).total_seconds()
+                st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {sampling_hz:.1f} Hz")
+            except:
+                st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points")
+
+
+def render_psd_analysis(datasets: dict, info: dict):
+    """Render Power Spectral Density analysis."""
+    st.markdown("### Power Spectral Density")
+    
+    dataset_keys = list(datasets.keys())
+    selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
+    
+    df = datasets[selected_key]
+    columns = list(df.columns)
+    selected_col = st.selectbox("Variable", columns, key="psd_col")
+    
+    data = df[selected_col].values
+    clean_data = data[~np.isnan(data)]
+    time_data = df.index.values.astype('datetime64[ns]')
+    
+    st.markdown(f"#### PSD: {selected_key} {selected_col}")
+    
+    try:
+        psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+        units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
+        fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_key} {selected_col}", psd_units=units)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
+    except Exception as e:
+        st.error(str(e))
+
+
+def render_pdf_analysis(datasets: dict, info: dict):
+    """Render PDF & Moments analysis."""
+    st.markdown("### PDF & Moments")
+    
+    dataset_keys = list(datasets.keys())
+    selected_key = st.selectbox("Dataset", dataset_keys, key="pdf_dataset")
+    
+    df = datasets[selected_key]
+    columns = list(df.columns)
+    selected_col = st.selectbox("Variable", columns, key="pdf_col")
+    
+    data = df[selected_col].values
+    clean_data = data[~np.isnan(data)]
+    
+    c1, c2 = st.columns([3, 1])
+    bins = c1.slider("Bins", 20, 200, 50, key="pdf_bins")
+    logy = c2.checkbox("Log Y", key="pdf_logy")
+    
+    cp, cs = st.columns([2, 1])
+    
+    with cp:
+        try:
+            pdf = cached_pdf(tuple(clean_data), bins)
+            units = "nT" if 'B' in selected_col else "km/s"
+            fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} ({units})", log_y=logy)
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(str(e))
+    
+    with cs:
+        st.markdown("##### Statistics")
+        try:
+            stats = cached_stats(tuple(clean_data))
+            for n, v in create_stats_display(stats).items():
+                st.metric(n, v)
+        except Exception as e:
+            st.error(str(e))
+
+
+def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
+    """Render Summary Statistics analysis."""
+    st.markdown("### Summary Statistics")
+    
+    dataset_keys = list(datasets.keys())
+    selected_key = st.selectbox("Dataset", dataset_keys, key="sum_dataset")
+    
+    df = datasets[selected_key]
+    columns = list(df.columns)
+    selected_col = st.selectbox("Variable", columns, key="sum_col")
+    
+    data = df[selected_col].values
+    clean_data = data[~np.isnan(data)]
+    time_data = df.index.values.astype('datetime64[ns]')
+    
+    # Quick time series preview
+    step = max(1, len(time_data) // min(subsample_pts, 8000))
+    fig = create_time_series_plot(time_data[::step], data[::step], 
+                                  title=f"{selected_key}: {selected_col}", 
+                                  ylabel=f"{selected_col}", height=350)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        st.markdown("##### Statistics")
+        try:
+            stats = cached_stats(tuple(clean_data))
+            for n, v in create_stats_display(stats).items():
+                st.text(f"{n}: {v}")
+        except Exception as e:
+            st.error(str(e))
+    
+    with c2:
+        st.markdown("##### Quick PSD")
+        try:
+            psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+            units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
+            fig = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=300)
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(str(e))
+
+
+def main():
+    """Main application entry point."""
+    
+    # Apply dark theme CSS
+    apply_custom_css()
+    
+    # Initialize session state
+    if 'data' not in st.session_state:
+        st.session_state.data = None
+    if 'data_loaded' not in st.session_state:
+        st.session_state.data_loaded = False
+    if 'download_info' not in st.session_state:
+        st.session_state.download_info = {}
+    if 'upload_info' not in st.session_state:
+        st.session_state.upload_info = {}
+    
+    # Render sidebar (always visible)
+    analysis_mode, subsample_pts = render_sidebar()
+    
+    # Main content area
+    if not st.session_state.get('data_loaded', False):
+        # Show data loader wizard
+        render_data_loader()
+    else:
+        # Show analysis view
+        if analysis_mode:
+            render_analysis(analysis_mode, subsample_pts)
+        else:
+            st.info("Select an analysis mode from the sidebar.")
 
 
 if __name__ == "__main__":
     main()
+
