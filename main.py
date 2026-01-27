@@ -576,9 +576,9 @@ MMS_INSTRUMENTS = {
     "Energetic Ion Spectrometer (EIS)": {"key": "eis", "active": False},
     "Active Spacecraft Potential Control (ASPOC)": {"key": "aspoc", "active": False},
     "Hot Plasma Composition Analyzer (HPCA)": {"key": "hpca", "active": False},
-    "Mechanisms (MEC)": {"key": "mec", "active": False},
-    "Ephemeris and Coordinates (STATE)": {"key": "state", "active": False},
-    "Time Quality Factors (TQF)": {"key": "tqf", "active": False},
+    "Mission Ephemeris Coordinates (MEC)": {"key": "mec", "active": False},
+    "Attitude and Ephemeris (STATE)": {"key": "state", "active": False},
+    "Tetrahedron Quality Factor (TQF)": {"key": "tqf", "active": False},
 }
 
 
@@ -635,42 +635,42 @@ def render_nasa_download_form():
         st.info(f"🔜 **Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI", icon="ℹ️")
         return
     
-    # Time & Parameters section
-    st.markdown("### ⏱️ Time Range & Parameters")
+    # Time Range section
+    st.markdown("### ⏱️ Time Range")
     
     from datetime import date, time, timedelta
     
-    col1, col2, col3 = st.columns([1, 1, 1])
+    default_start = date.today() - timedelta(days=1)
+    default_end = date.today() - timedelta(days=1)
     
-    with col1:
-        st.markdown("**Start**")
-        default_start = date.today() - timedelta(days=1)
-        start_date = st.date_input("Start Date", value=default_start, label_visibility="collapsed")
-        start_time = st.time_input("Start Time", value=time(12, 0), label_visibility="collapsed")
+    t1, t2, t3, t4 = st.columns(4)
+    with t1:
+        start_date = st.date_input("Start Date", value=default_start)
+    with t2:
+        start_time = st.time_input("Start Time", value=time(12, 0))
+    with t3:
+        end_date = st.date_input("End Date", value=default_end)
+    with t4:
+        end_time = st.time_input("End Time", value=time(12, 30))
     
-    with col2:
-        st.markdown("**End**")
-        default_end = date.today() - timedelta(days=1)
-        end_date = st.date_input("End Date", value=default_end, label_visibility="collapsed")
-        end_time = st.time_input("End Time", value=time(12, 30), label_visibility="collapsed")
+    # Configuration section
+    st.markdown("### ⚙️ Configuration")
     
-    with col3:
-        st.markdown("**Configuration**")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
         probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
-        
+    with c2:
         if instrument_key == 'fgm':
-            data_rate = st.selectbox("Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
+            data_rate = st.selectbox("Data Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
         else:
-            data_rate = st.selectbox("Rate", ['fast', 'brst'], index=0)
-    
-    # Additional config row
-    cfg1, cfg2, cfg3 = st.columns([1, 1, 2])
-    with cfg1:
+            data_rate = st.selectbox("Data Rate", ['fast', 'brst'], index=0)
+    with c3:
         level = st.selectbox("Level", ['l2'], index=0)
-    with cfg2:
+    with c4:
         coord = st.selectbox("Coordinates", ['gse', 'gsm'], index=0)
     
     st.markdown("")  # Spacer
+
     
     # Download button
     if st.button(f"🚀 Download {instrument_key.upper()} Data", type="primary", use_container_width=True):
