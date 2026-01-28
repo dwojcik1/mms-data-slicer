@@ -587,46 +587,48 @@ MMS_INSTRUMENTS = {
 def render_data_loader():
     """Render the main page data configuration wizard."""
     
-    # Center the wizard content on large screens with 1:2:1 ratio
-    _, col_center, _ = st.columns([1, 2, 1])
+    # Open custom glass container div
+    st.markdown('<div class="data-config-container">', unsafe_allow_html=True)
     
-    with col_center:
-        # Main title
-        st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab 🛰️")
-        st.markdown("### Data Configuration 📡")
-        st.caption("Select your data source and configure the download parameters.")
-        
-        st.markdown("")  # Spacer
-        
-        # Data source selection
-        data_source = st.radio(
-            "Data Source",
-            ["Download from NASA CDAWeb", "Upload own .CDF files"],
-            horizontal=True,
-            label_visibility="collapsed"
-        )
-        
-        st.divider()
-        
-        if data_source == "Download from NASA CDAWeb":
-            render_nasa_download_form()
-        else:
-            render_upload_form()
-        
-        # Acknowledgments footer
-        st.markdown("---")
-        st.markdown(
-            """
-            <div style="text-align: center; opacity: 0.7; font-size: 0.85em; padding: 20px 0;">
-                <strong>Acknowledgments:</strong> This work relies on efforts of the entire MMS mission team, 
-                including development, science operations, and the Science Data Center at the University of Colorado.<br>
-                <a href="http://doi.org/10.1007/s11214-015-0164-9" target="_blank" style="color: #818cf8;">
-                    J.L. Burch et al., Space Sci Rev (2016) — Mission Overview
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+    # Main title
+    st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab 🛰️")
+    st.markdown("### Data Configuration 📡")
+    st.caption("Select your data source and configure the download parameters.")
+    
+    st.markdown("")  # Spacer
+    
+    # Data source selection
+    data_source = st.radio(
+        "Data Source",
+        ["Download from NASA CDAWeb", "Upload own .CDF files"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.divider()
+    
+    if data_source == "Download from NASA CDAWeb":
+        render_nasa_download_form()
+    else:
+        render_upload_form()
+    
+    # Acknowledgments footer
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="text-align: center; opacity: 0.7; font-size: 0.85em; padding: 20px 0;">
+            <strong>Acknowledgments:</strong> This work relies on efforts of the entire MMS mission team, 
+            including development, science operations, and the Science Data Center at the University of Colorado.<br>
+            <a href="http://doi.org/10.1007/s11214-015-0164-9" target="_blank" style="color: #818cf8;">
+                J.L. Burch et al., Space Sci Rev (2016) — Mission Overview
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Close custom glass container div
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_nasa_download_form():

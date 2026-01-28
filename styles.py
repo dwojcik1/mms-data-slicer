@@ -235,6 +235,26 @@ def apply_custom_css():
     }
     
     /* ==========================================================================
+       DATA CONFIG CONTAINER - CENTERED GLASS PANEL
+       ========================================================================== */
+    .data-config-container {
+        max-width: 900px !important;
+        margin: 0 auto !important;
+        background: rgba(15, 20, 35, 0.6) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-radius: 20px !important;
+        padding: 40px !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    
+    .data-config-container h2,
+    .data-config-container h3 {
+        margin-top: 0 !important;
+    }
+
+    
+    /* ==========================================================================
        SCROLLBAR
        ========================================================================== */
     ::-webkit-scrollbar {
