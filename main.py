@@ -1140,10 +1140,11 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
 
 def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
     """Render Time Series Inspector view."""
-    from plots import plot_magnetic_field, plot_velocity_field, PLOTLY_CONFIG
+    from plots import plot_magnetic_field, plot_velocity_field, PLOTLY_CONFIG, EFIELD_COLORS, POSITION_COLORS, SCALAR_COLOR
     
     probe = info.get('probe', '?')
     coord = info.get('coord', 'GSE').upper()
+    instrument = info.get('instrument', '').upper()
     
     for key, df in datasets.items():
         if df is None or len(df) == 0:
@@ -1167,27 +1168,52 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         else:
             plot_df = df
         
-        # Determine plot type
-        if key == 'FGM':
+        # Determine plot type based on instrument key
+        if key in ['FGM', 'SCM', 'FSM']:
+            # Magnetic field instruments
             if time_range:
                 title = f"MMS {probe} | B | {coord} | {date_str} | {time_range}"
             else:
                 title = f"MMS {probe} | B | {coord} | {date_str}"
             fig = plot_magnetic_field(plot_df, title=title, height=550)
-        elif key == 'DES':
+            
+        elif key in ['DES']:
             if time_range:
                 title = f"MMS {probe} | Electron Velocity | {coord} | {date_str} | {time_range}"
             else:
                 title = f"MMS {probe} | V<sub>e</sub> | {coord} | {date_str}"
             fig = plot_velocity_field(plot_df, title=title, species='electron', height=450)
-        elif key == 'DIS':
+            
+        elif key in ['DIS']:
             if time_range:
                 title = f"MMS {probe} | Ion Velocity | {coord} | {date_str} | {time_range}"
             else:
                 title = f"MMS {probe} | V<sub>i</sub> | {coord} | {date_str}"
             fig = plot_velocity_field(plot_df, title=title, species='ion', height=450)
+            
+        elif key in ['EDP', 'EDI']:
+            # Electric field instruments - use generic vector plot
+            if time_range:
+                title = f"MMS {probe} | {key} E-field | {coord} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | {key} E-field | {coord} | {date_str}"
+            fig = _plot_generic_vector(plot_df, title=title, y_label="E (mV/m)", colors=EFIELD_COLORS)
+            
+        elif key in ['MEC', 'STATE']:
+            # Position/ephemeris
+            if time_range:
+                title = f"MMS {probe} | Position | {coord} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | Position | {coord} | {date_str}"
+            fig = _plot_generic_vector(plot_df, title=title, y_label="Position (km)", colors=POSITION_COLORS)
+            
         else:
-            continue
+            # Generic scalar/other data (HPCA, FEEPS, EIS, ASPOC, TQF)
+            if time_range:
+                title = f"MMS {probe} | {key} | {date_str} | {time_range}"
+            else:
+                title = f"MMS {probe} | {key} | {date_str}"
+            fig = _plot_generic_scalar(plot_df, title=title, key=key)
         
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
@@ -1197,6 +1223,62 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {sampling_hz:.1f} Hz")
             except:
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points")
+
+
+def _plot_generic_vector(df, title: str, y_label: str, colors: dict):
+    """Generic vector plot for E-field, position, etc."""
+    import plotly.graph_objects as go
+    
+    fig = go.Figure()
+    
+    for col in df.columns:
+        color = colors.get(col, '#1f77b4')
+        fig.add_trace(go.Scattergl(
+            x=df.index, y=df[col],
+            mode='lines', name=col,
+            line=dict(color=color, width=1)
+        ))
+    
+    fig.update_layout(
+        title=title,
+        yaxis_title=y_label,
+        template='plotly_white',
+        hovermode='x unified',
+        height=500,
+        legend=dict(orientation='h', y=1.02, x=1, xanchor='right')
+    )
+    
+    return fig
+
+
+def _plot_generic_scalar(df, title: str, key: str):
+    """Generic scalar plot for density, flux, current, etc."""
+    import plotly.graph_objects as go
+    from plots import SCALAR_COLOR, INSTRUMENT_UNITS
+    
+    fig = go.Figure()
+    
+    for col in df.columns:
+        fig.add_trace(go.Scattergl(
+            x=df.index, y=df[col],
+            mode='lines', name=col,
+            line=dict(color=SCALAR_COLOR, width=1.5)
+        ))
+    
+    # Try to get units for y-axis
+    units = INSTRUMENT_UNITS.get(key.lower(), '')
+    y_label = f"{key} ({units})" if units else key
+    
+    fig.update_layout(
+        title=title,
+        yaxis_title=y_label,
+        template='plotly_white',
+        hovermode='x unified',
+        height=450,
+        legend=dict(orientation='h', y=1.02, x=1, xanchor='right')
+    )
+    
+    return fig
 
 
 def render_psd_analysis(datasets: dict, info: dict):
