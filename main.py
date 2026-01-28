@@ -592,8 +592,9 @@ def render_data_loader():
     
     with col_center:
         # Main title
-        st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Laboratory")
-        st.markdown("Select your data source and configure the download parameters.")
+        st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab 🛰️")
+        st.markdown("### Data Configuration 📡")
+        st.caption("Select your data source and configure the download parameters.")
         
         st.markdown("")  # Spacer
         
@@ -782,7 +783,7 @@ def render_sidebar():
     """Render the sidebar with global controls and analysis navigation."""
     
     with st.sidebar:
-        st.markdown("### Global Controls")
+        st.markdown("### Global Controls ⚙️")
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
@@ -797,42 +798,22 @@ def render_sidebar():
             default_pts = 30000
             total_len = 0
         
-        # Dual-input interface: Slider + Number input
-        st.markdown("**Subsample Points**")
-        slider_col, num_col = st.columns([2, 1])
+        # Single number input for subsample control
+        subsample_pts = st.number_input(
+            "Subsample Points",
+            min_value=1000,
+            max_value=max_pts,
+            value=default_pts,
+            step=1000,
+            key="subsample_pts"
+        )
         
-        with slider_col:
-            subsample_slider = st.slider(
-                "Subsample",
-                min_value=1000,
-                max_value=max_pts,
-                value=default_pts,
-                step=1000,
-                label_visibility="collapsed",
-                key="subsample_slider"
-            )
-        
-        with num_col:
-            subsample_num = st.number_input(
-                "Points",
-                min_value=1000,
-                max_value=max_pts,
-                value=subsample_slider,
-                step=1000,
-                label_visibility="collapsed",
-                key="subsample_num"
-            )
-        
-        # Use the number input value (which syncs from slider default)
-        subsample_pts = subsample_num
-        
-        # Memory cost estimate
-        if subsample_pts < 50000:
-            st.caption("Est. Memory: **Low**")
-        elif subsample_pts < 500000:
-            st.caption("Est. Memory: **Medium**")
-        else:
-            st.caption("Est. Memory: **High**")
+        # Explanation text
+        st.info(
+            "**Note:** Large datasets are subsampled to maintain performance. "
+            "Increasing this value improves resolution but increases memory usage.",
+            icon="ℹ️"
+        )
         
         st.divider()
         
@@ -870,7 +851,7 @@ def render_sidebar():
             st.divider()
         
         # Analysis mode navigation
-        st.markdown("### Analysis Mode")
+        st.markdown("### Analysis Mode 📊")
         
         if data_loaded:
             analysis_mode = st.radio(
@@ -884,6 +865,7 @@ def render_sidebar():
             analysis_mode = None
         
         st.divider()
+
         
         # Data Export section (only when data is loaded)
         if data_loaded and data:
