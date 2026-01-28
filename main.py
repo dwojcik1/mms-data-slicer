@@ -566,22 +566,62 @@ def render_dataframe_analysis(df, time_data):
 # Main Application
 # ============================================================================
 
-# MMS Instrument catalog
+# MMS Instrument catalog with descriptions
 MMS_INSTRUMENTS = {
-    "Fluxgate Magnetometer (FGM)": {"key": "fgm", "active": True},
-    "Fast Plasma Investigation (FPI)": {"key": "fpi", "active": True},
-    "Search Coil Magnetometer (SCM)": {"key": "scm", "active": False},
-    "FGM+SCM Data (FSM)": {"key": "fsm", "active": False},
-    "Electric Field Double Probe (EDP)": {"key": "edp", "active": False},
-    "Electron Drift Instrument (EDI)": {"key": "edi", "active": False},
-    "Fly's Eye Energetic Particle Sensor (FEEPS)": {"key": "feeps", "active": False},
-    "Energetic Ion Spectrometer (EIS)": {"key": "eis", "active": False},
-    "Active Spacecraft Potential Control (ASPOC)": {"key": "aspoc", "active": False},
-    "Hot Plasma Composition Analyzer (HPCA)": {"key": "hpca", "active": False},
-    "Mission Ephemeris Coordinates (MEC)": {"key": "mec", "active": False},
-    "Attitude and Ephemeris (STATE)": {"key": "state", "active": False},
-    "Tetrahedron Quality Factor (TQF)": {"key": "tqf", "active": False},
+    "Fluxgate Magnetometer (FGM)": {
+        "key": "fgm", "active": True,
+        "desc": "Load data from the MMS fluxgate magnetometer"
+    },
+    "Fast Plasma Investigation (FPI)": {
+        "key": "fpi", "active": True,
+        "desc": "Load data from the MMS Fast Plasma Investigation (FPI)"
+    },
+    "Search Coil Magnetometer (SCM)": {
+        "key": "scm", "active": False,
+        "desc": "Load data from the MMS Search Coil Magnetometer (SCM)"
+    },
+    "FGM+SCM Data (FSM)": {
+        "key": "fsm", "active": False,
+        "desc": "Load data from the MMS FSM (FGM + SCM) data"
+    },
+    "Electric Field Double Probe (EDP)": {
+        "key": "edp", "active": False,
+        "desc": "Load data from the MMS Electric field Double Probes (EDP) instrument"
+    },
+    "Electron Drift Instrument (EDI)": {
+        "key": "edi", "active": False,
+        "desc": "Load data from the MMS Electron Drift Instrument (EDI)"
+    },
+    "Fly's Eye Energetic Particle Sensor (FEEPS)": {
+        "key": "feeps", "active": False,
+        "desc": "Load data from the MMS Fly's Eye Energetic Particle Sensor (FEEPS)"
+    },
+    "Energetic Ion Spectrometer (EIS)": {
+        "key": "eis", "active": False,
+        "desc": "Load data from the MMS Energetic Ion Spectrometer (EIS)"
+    },
+    "Active Spacecraft Potential Control (ASPOC)": {
+        "key": "aspoc", "active": False,
+        "desc": "Load data from the MMS Active Spacecraft Potential Control (ASPOC)"
+    },
+    "Hot Plasma Composition Analyzer (HPCA)": {
+        "key": "hpca", "active": False,
+        "desc": "Load data from the MMS Hot Plasma Composition Analyzer (HPCA)"
+    },
+    "Mission Ephemeris Coordinates (MEC)": {
+        "key": "mec", "active": False,
+        "desc": "Load data from the MMS Mission Ephemeris and Coordinates files: attitude / ephemeris"
+    },
+    "Attitude and Ephemeris (STATE)": {
+        "key": "state", "active": False,
+        "desc": "Load the state (ephemeris and attitude) data from the ASCII files"
+    },
+    "Tetrahedron Quality Factor (TQF)": {
+        "key": "tqf", "active": False,
+        "desc": "Load the MMS tetrahedron quality factor data from the ASCII files"
+    },
 }
+
 
 
 def render_data_loader():
@@ -654,16 +694,16 @@ def render_nasa_download_form():
     instrument_info = MMS_INSTRUMENTS[instrument_name]
     instrument_key = instrument_info["key"]
     is_active = instrument_info["active"]
+    instrument_desc = instrument_info.get("desc", "")
     
-    # Dynamic instrument description
-    if instrument_key == 'fgm':
-        st.caption("*Load MMS Fluxgate Magnetometer data*")
-    elif instrument_key == 'fpi':
-        st.caption("*Load MMS Fast Plasma Investigation data*")
+    # Display instrument description from dictionary
+    if instrument_desc:
+        st.caption(f"*{instrument_desc}*")
     
     if not is_active:
         st.info(f"**Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI")
         return
+
     
     # Time Range section
     st.markdown("### Time Range")
