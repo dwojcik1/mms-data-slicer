@@ -19,10 +19,21 @@ def apply_custom_css():
        ========================================================================== */
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
     
-    /* Global font application */
+    /* Global font application - exclude icon fonts */
     html, body, [class*="st-"], .stApp, .stApp * {
         font-family: 'Space Grotesk', sans-serif !important;
     }
+    
+    /* Preserve Material Icons for Streamlit UI icons */
+    .material-icons, 
+    [class*="icon"], 
+    [data-testid*="icon"],
+    .stSidebar button span,
+    [aria-label*="Collapse"],
+    [aria-label*="Expand"] {
+        font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
+    }
+
     
     /* ==========================================================================
        ROOT APPLICATION - ELIMINATE WHITE BACKGROUND
