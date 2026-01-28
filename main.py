@@ -577,50 +577,51 @@ MMS_INSTRUMENTS = {
         "desc": "Load data from the MMS Fast Plasma Investigation (FPI)"
     },
     "Search Coil Magnetometer (SCM)": {
-        "key": "scm", "active": False,
+        "key": "scm", "active": True,
         "desc": "Load data from the MMS Search Coil Magnetometer (SCM)"
     },
     "FGM+SCM Data (FSM)": {
-        "key": "fsm", "active": False,
+        "key": "fsm", "active": True,
         "desc": "Load data from the MMS FSM (FGM + SCM) data"
     },
     "Electric Field Double Probe (EDP)": {
-        "key": "edp", "active": False,
+        "key": "edp", "active": True,
         "desc": "Load data from the MMS Electric field Double Probes (EDP) instrument"
     },
     "Electron Drift Instrument (EDI)": {
-        "key": "edi", "active": False,
+        "key": "edi", "active": True,
         "desc": "Load data from the MMS Electron Drift Instrument (EDI)"
     },
     "Fly's Eye Energetic Particle Sensor (FEEPS)": {
-        "key": "feeps", "active": False,
+        "key": "feeps", "active": True,
         "desc": "Load data from the MMS Fly's Eye Energetic Particle Sensor (FEEPS)"
     },
     "Energetic Ion Spectrometer (EIS)": {
-        "key": "eis", "active": False,
+        "key": "eis", "active": True,
         "desc": "Load data from the MMS Energetic Ion Spectrometer (EIS)"
     },
     "Active Spacecraft Potential Control (ASPOC)": {
-        "key": "aspoc", "active": False,
+        "key": "aspoc", "active": True,
         "desc": "Load data from the MMS Active Spacecraft Potential Control (ASPOC)"
     },
     "Hot Plasma Composition Analyzer (HPCA)": {
-        "key": "hpca", "active": False,
+        "key": "hpca", "active": True,
         "desc": "Load data from the MMS Hot Plasma Composition Analyzer (HPCA)"
     },
     "Mission Ephemeris Coordinates (MEC)": {
-        "key": "mec", "active": False,
-        "desc": "Load data from the MMS Mission Ephemeris and Coordinates files: attitude / ephemeris"
+        "key": "mec", "active": True,
+        "desc": "Load data from the MMS Mission Ephemeris and Coordinates files"
     },
     "Attitude and Ephemeris (STATE)": {
-        "key": "state", "active": False,
-        "desc": "Load the state (ephemeris and attitude) data from the ASCII files"
+        "key": "state", "active": True,
+        "desc": "Load the state (ephemeris and attitude) data"
     },
     "Tetrahedron Quality Factor (TQF)": {
-        "key": "tqf", "active": False,
-        "desc": "Load the MMS tetrahedron quality factor data from the ASCII files"
+        "key": "tqf", "active": True,
+        "desc": "Load the MMS tetrahedron quality factor data"
     },
 }
+
 
 # Instrument parameter configuration for PySPEDAS
 # Defines available rates, levels, and datatypes for each instrument
@@ -795,10 +796,7 @@ def render_nasa_download_form():
     # Display instrument description from dictionary
     if instrument_desc:
         st.caption(f"*{instrument_desc}*")
-    
-    # Note for inactive instruments (but don't return - show the UI)
-    if not is_active:
-        st.warning(f"⚠️ **{instrument_key.upper()} download not yet implemented.** UI preview only.")
+
 
     
     # Time Range section
@@ -890,49 +888,32 @@ def render_nasa_download_form():
     # Download button
     if st.button(f"Load {instrument_key.upper()} Data", type="primary", use_container_width=True):
         
-        # Check if instrument is active (has backend support)
-        if not is_active:
-            st.info(f"🚧 **{instrument_key.upper()} download backend not yet implemented.**\n\n"
-                    f"Selected parameters:\n"
-                    f"- Probe: MMS{probe}\n"
-                    f"- Rate: {data_rate.upper() if data_rate else 'N/A'}\n"
-                    f"- Level: {level.upper() if level else 'N/A'}\n"
-                    f"- Datatype: {datatype.upper() if datatype else 'N/A'}\n"
-                    f"- Coordinates: {coord.upper() if coord else 'N/A'}")
-            return
-
         trange = format_trange(start_date, start_time, end_date, end_time)
         
         with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
             try:
-                if instrument_key == 'fgm':
-                    df = load_fgm_cdasws(
-                        trange=trange,
-                        probe=probe,
-                        data_rate=data_rate,
-                        level=level,
-                        coord=coord
-                    )
-                    st.session_state.data = {'FGM': df}
-                elif instrument_key == 'fpi':
-                    datasets = load_fpi_cdasws(
-                        trange=trange,
-                        probe=probe,
-                        data_rate=data_rate,
-                        level=level,
-                        coord=coord
-                    )
-                    st.session_state.data = datasets
-                else:
-                    st.error(f"Backend for {instrument_key.upper()} not implemented")
-                    return
+                # Import universal loader
+                from downloader import load_mms_universal
                 
+                # Call universal loader with all parameters
+                datasets = load_mms_universal(
+                    instrument=instrument_key,
+                    trange=trange,
+                    probe=probe,
+                    data_rate=data_rate if data_rate else 'srvy',
+                    level=level if level else 'l2',
+                    coord=coord if coord else 'gse',
+                    datatype=datatype if datatype else ''
+                )
+                
+                st.session_state.data = datasets
                 st.session_state.data_loaded = True
                 st.session_state.download_info = {
                     'probe': probe,
-                    'data_rate': data_rate,
-                    'level': level,
+                    'data_rate': data_rate if data_rate else '',
+                    'level': level if level else '',
                     'coord': coord.upper() if coord else '',
+                    'datatype': datatype if datatype else '',
                     'trange': trange,
                     'instrument': instrument_key.upper()
                 }

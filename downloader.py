@@ -390,3 +390,354 @@ def format_trange(start_date, start_time, end_date, end_time) -> List[str]:
         end_dt.strftime('%Y-%m-%d %H:%M:%S')
     ]
 
+
+# ============================================================================
+# Universal MMS Instrument Loader
+# ============================================================================
+
+# Dataset ID patterns for each instrument
+# Format strings use: p=probe, r=rate, l=level, t=datatype, c=coord
+INSTRUMENT_DATASET_MAP = {
+    'fgm': {
+        'dataset': 'MMS{p}_FGM_{r}_{l}',
+        'var_patterns': ['mms{p}_fgm_b_{c}_{r}_{l}'],
+        'columns': ['Bx', 'By', 'Bz', 'Bt'],
+        'units': 'nT',
+        'type': 'vector'
+    },
+    'scm': {
+        'dataset': 'MMS{p}_SCM_{r}_{l}',
+        'var_patterns': ['mms{p}_scm_acb_{c}_{t}_{r}_{l}', 'mms{p}_scm_acb_gse_{t}_{r}_{l}'],
+        'columns': ['Bx', 'By', 'Bz'],
+        'units': 'nT',
+        'type': 'vector'
+    },
+    'fsm': {
+        'dataset': 'MMS{p}_FSM_{r}_{l}',
+        'var_patterns': ['mms{p}_fsm_b_{c}_{r}_{l}'],
+        'columns': ['Bx', 'By', 'Bz', 'Bt'],
+        'units': 'nT',
+        'type': 'vector'
+    },
+    'edp': {
+        'dataset': 'MMS{p}_EDP_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_edp_{t}_{c}_{r}_{l}', 'mms{p}_edp_{t}_gse_{r}_{l}'],
+        'columns': ['Ex', 'Ey', 'Ez'],
+        'units': 'mV/m',
+        'type': 'vector'
+    },
+    'edi': {
+        'dataset': 'MMS{p}_EDI_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_edi_{t}_{c}_{r}_{l}', 'mms{p}_edi_e_gse_{r}_{l}'],
+        'columns': ['Ex', 'Ey', 'Ez'],
+        'units': 'mV/m',
+        'type': 'vector'
+    },
+    'hpca': {
+        'dataset': 'MMS{p}_HPCA_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_hpca_hplus_number_density', 'mms{p}_hpca_hplus_scalar_temperature'],
+        'columns': ['value'],
+        'units': 'cm^-3',
+        'type': 'scalar'
+    },
+    'feeps': {
+        'dataset': 'MMS{p}_FEEPS_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_epd_feeps_srvy_l2_electron_intensity_omni', 
+                         'mms{p}_epd_feeps_{r}_{l}_{t}_intensity_omni'],
+        'columns': ['value'],
+        'units': '1/(cm^2 s sr keV)',
+        'type': 'flux'
+    },
+    'eis': {
+        'dataset': 'MMS{p}_EIS_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_epd_eis_{r}_{l}_{t}_proton_flux_omni',
+                         'mms{p}_epd_eis_srvy_l2_phxtof_proton_flux_omni'],
+        'columns': ['value'],
+        'units': '1/(cm^2 s sr keV)',
+        'type': 'flux'
+    },
+    'aspoc': {
+        'dataset': 'MMS{p}_ASPOC_{r}_{l}',
+        'var_patterns': ['mms{p}_aspoc_ionc', 'mms{p}_asp1_ionc'],
+        'columns': ['current'],
+        'units': 'μA',
+        'type': 'scalar'
+    },
+    'mec': {
+        'dataset': 'MMS{p}_MEC_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_mec_r_{c}', 'mms{p}_mec_r_gse'],
+        'columns': ['X', 'Y', 'Z'],
+        'units': 'km',
+        'type': 'vector'
+    },
+    'state': {
+        'dataset': 'MMS{p}_DEFATT',
+        'var_patterns': ['mms{p}_defatt_spinras', 'mms{p}_defatt_spindec'],
+        'columns': ['value'],
+        'units': 'deg',
+        'type': 'scalar'
+    },
+    'tqf': {
+        'dataset': 'MMS_TETRAHEDRON_QF',
+        'var_patterns': ['mms_tetrahedron_qf'],
+        'columns': ['QF'],
+        'units': '',
+        'type': 'scalar'
+    },
+}
+
+
+def _download_cdf_and_extract(
+    dataset: str,
+    var_patterns: List[str],
+    start_time: datetime,
+    end_time: datetime,
+    columns: List[str],
+    probe: str = '1',
+    data_rate: str = 'srvy',
+    level: str = 'l2',
+    coord: str = 'gse',
+    datatype: str = ''
+) -> pd.DataFrame:
+    """
+    Generic CDF download and extraction helper.
+    
+    Downloads CDF files from CDAWeb and extracts the specified variable.
+    """
+    try:
+        from cdasws import CdasWs
+        import cdflib
+    except ImportError as e:
+        raise ImportError(f"Required modules not installed: {e}")
+    
+    cdas = CdasWs()
+    
+    # Build variable names from patterns
+    var_names = []
+    for pattern in var_patterns:
+        var_name = pattern.format(
+            p=probe, r=data_rate.lower(), l=level.lower(), 
+            c=coord.lower(), t=datatype.lower()
+        )
+        var_names.append(var_name)
+    
+    # Try to get files
+    try:
+        status_code, result = cdas.get_data_file(
+            dataset,
+            var_names[:1],  # Request first pattern
+            start_time,
+            end_time
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to get file list from CDAWeb for {dataset}: {e}")
+    
+    if not result or 'FileDescription' not in result:
+        raise ValueError(f"No data files found for {dataset}")
+    
+    file_descriptions = result.get('FileDescription', [])
+    if not file_descriptions:
+        raise ValueError(f"No data files available for {dataset}")
+    
+    import urllib.request
+    all_times = []
+    all_values = []
+    
+    for file_desc in file_descriptions:
+        file_url = file_desc.get('Name')
+        if not file_url:
+            continue
+        
+        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            urllib.request.urlretrieve(file_url, tmp_path)
+            cdf = cdflib.CDF(tmp_path)
+            
+            # Find epoch variable
+            epoch_data = None
+            info = cdf.cdf_info()
+            for zvar in getattr(info, 'zVariables', []):
+                if 'epoch' in zvar.lower():
+                    try:
+                        epoch_data = cdf.varget(zvar)
+                        break
+                    except:
+                        continue
+            
+            if epoch_data is None:
+                continue
+            
+            # Try each var pattern
+            field_data = None
+            for var_name in var_names:
+                try:
+                    field_data = cdf.varget(var_name)
+                    break
+                except:
+                    continue
+            
+            # If still nothing, try to find a matching variable
+            if field_data is None:
+                for zvar in getattr(info, 'zVariables', []):
+                    for pattern in var_patterns:
+                        # Simple pattern matching
+                        base = pattern.split('{')[0]
+                        if base and base in zvar.lower():
+                            try:
+                                test_data = cdf.varget(zvar)
+                                if test_data is not None and len(test_data) > 0:
+                                    field_data = test_data
+                                    break
+                            except:
+                                continue
+                    if field_data is not None:
+                        break
+            
+            if field_data is None:
+                continue
+            
+            # Convert epoch to datetime
+            times = cdflib.cdfepoch.to_datetime(epoch_data)
+            times_np = np.array(times, dtype='datetime64[ns]')
+            
+            # Filter to time range
+            start_np = np.datetime64(start_time)
+            end_np = np.datetime64(end_time)
+            mask = (times_np >= start_np) & (times_np <= end_np)
+            
+            times_filtered = times_np[mask]
+            
+            # Handle multi-dimensional data (spectra -> mean over energy)
+            if len(field_data.shape) > 2:
+                # Average over energy dimension for spectra
+                field_data = np.nanmean(field_data, axis=tuple(range(1, len(field_data.shape)-1)))
+            
+            values_filtered = field_data[mask]
+            
+            if len(times_filtered) > 0:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+            
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+    
+    if not all_times:
+        raise ValueError(f"No data extracted from {dataset}")
+    
+    # Concatenate and sort
+    times = np.concatenate(all_times)
+    values = np.concatenate(all_values)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+    
+    # Create DataFrame
+    datetime_index = pd.to_datetime(times)
+    
+    # Handle shape
+    if len(values.shape) == 1:
+        values = values.reshape(-1, 1)
+    
+    # Use provided columns or generate
+    if values.shape[1] >= len(columns):
+        cols = columns[:values.shape[1]]
+    else:
+        cols = columns + [f'col{i}' for i in range(len(columns), values.shape[1])]
+    
+    df = pd.DataFrame(values[:, :len(cols)], index=datetime_index, columns=cols)
+    df.index.name = 'time'
+    
+    # Clean fill values
+    df = df.replace(-1e31, np.nan)
+    df = df.replace(1e31, np.nan)
+    
+    # Add magnitude for vector data
+    if len(cols) >= 3 and cols[0] in ['Bx', 'Ex', 'X', 'Vx']:
+        mag_col = 'Bt' if 'Bx' in cols else 'Et' if 'Ex' in cols else 'R' if 'X' in cols else 'Vt'
+        if mag_col not in df.columns:
+            df[mag_col] = np.sqrt(df.iloc[:, 0]**2 + df.iloc[:, 1]**2 + df.iloc[:, 2]**2)
+    
+    return df
+
+
+@st.cache_data(show_spinner="Downloading instrument data from NASA CDAWeb...")
+def load_mms_universal(
+    instrument: str,
+    trange: List[str],
+    probe: str = '1',
+    data_rate: str = 'srvy',
+    level: str = 'l2',
+    coord: str = 'gse',
+    datatype: str = ''
+) -> dict:
+    """
+    Universal MMS instrument data loader.
+    
+    Downloads data from NASA CDAWeb for any MMS instrument and returns
+    standardized Pandas DataFrames.
+    
+    Args:
+        instrument: Instrument key ('fgm', 'fpi', 'scm', 'edp', etc.)
+        trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
+        probe: MMS spacecraft number ('1', '2', '3', or '4')
+        data_rate: Data rate (instrument-specific)
+        level: Data level ('l2', 'l1b', etc.)
+        coord: Coordinate system ('gse', 'gsm')
+        datatype: Instrument-specific datatype
+        
+    Returns:
+        Dictionary with instrument data as DataFrames
+    """
+    instrument = instrument.lower()
+    
+    # Use existing optimized loaders for FGM and FPI
+    if instrument == 'fgm':
+        df = load_fgm_cdasws(trange, probe, data_rate, level, coord)
+        return {'FGM': df}
+    
+    if instrument == 'fpi':
+        return load_fpi_cdasws(trange, probe, data_rate, level, coord)
+    
+    # Get instrument config
+    if instrument not in INSTRUMENT_DATASET_MAP:
+        raise ValueError(f"Unknown instrument: {instrument}")
+    
+    config = INSTRUMENT_DATASET_MAP[instrument]
+    
+    # Build dataset ID
+    dataset = config['dataset'].format(
+        p=probe, r=data_rate.upper(), l=level.upper(), t=datatype.upper()
+    )
+    
+    # Parse time range
+    start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
+    
+    try:
+        df = _download_cdf_and_extract(
+            dataset=dataset,
+            var_patterns=config['var_patterns'],
+            start_time=start_time,
+            end_time=end_time,
+            columns=config['columns'],
+            probe=probe,
+            data_rate=data_rate,
+            level=level,
+            coord=coord,
+            datatype=datatype
+        )
+        
+        # Store metadata
+        df.attrs['instrument'] = instrument.upper()
+        df.attrs['units'] = config['units']
+        df.attrs['type'] = config['type']
+        
+        return {instrument.upper(): df}
+        
+    except Exception as e:
+        raise ValueError(f"Failed to load {instrument.upper()} data: {e}")

@@ -50,6 +50,43 @@ VELOCITY_COLORS = {
     'V3': '#000000',
 }
 
+# Electric field colors (same scheme)
+EFIELD_COLORS = {
+    'Ex': '#1f77b4',   # Blue
+    'Ey': '#2ca02c',   # Green
+    'Ez': '#d62728',   # Red  
+    'Et': '#000000',   # Black
+}
+
+# Position/ephemeris colors
+POSITION_COLORS = {
+    'X': '#1f77b4',    # Blue
+    'Y': '#2ca02c',    # Green
+    'Z': '#d62728',    # Red  
+    'R': '#000000',    # Black
+}
+
+# Scalar data color (for density, flux, current)
+SCALAR_COLOR = '#9467bd'  # Purple
+
+# Instrument unit mapping
+INSTRUMENT_UNITS = {
+    'fgm': 'nT',
+    'scm': 'nT',
+    'fsm': 'nT',
+    'edp': 'mV/m',
+    'edi': 'mV/m',
+    'fpi_velocity': 'km/s',
+    'fpi_density': 'cm⁻³',
+    'hpca': 'cm⁻³',
+    'feeps': '1/(cm² s sr keV)',
+    'eis': '1/(cm² s sr keV)',
+    'aspoc': 'μA',
+    'mec': 'km',
+    'state': 'deg',
+    'tqf': '',
+}
+
 
 def plot_magnetic_field(
     df,
