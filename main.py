@@ -592,7 +592,7 @@ def render_data_loader():
     
     with col_center:
         # Main title
-        st.markdown("## �️ Magnetospheric Multiscale (MMS) Turbulence Laboratory")
+        st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Laboratory")
         st.markdown("Select your data source and configure the download parameters.")
         
         st.markdown("")  # Spacer
