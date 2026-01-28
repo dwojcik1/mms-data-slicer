@@ -475,7 +475,7 @@ def render_dataframe_analysis(df, time_data):
                 "**Note:** To maintain performance, large datasets are subsampled. "
                 "Adjust the **Points** slider in Settings (sidebar) to show more detail. "
                 "Use the camera icon in the plot toolbar to export a high-resolution PNG.",
-                icon="ℹ️"
+                icon=""
             )
 
 
@@ -643,7 +643,7 @@ def render_nasa_download_form():
         return
     
     # Instrument selection
-    st.markdown("### 🛰️ Instrument Selection")
+    st.markdown("### Instrument Selection")
     
     instrument_name = st.selectbox(
         "Select Instrument",
@@ -656,11 +656,11 @@ def render_nasa_download_form():
     is_active = instrument_info["active"]
     
     if not is_active:
-        st.info(f"🔜 **Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI", icon="ℹ️")
+        st.info(f"**Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI")
         return
     
     # Time Range section
-    st.markdown("### ⏱️ Time Range")
+    st.markdown("###  Time Range")
     
     from datetime import date, time, timedelta
     
@@ -678,7 +678,7 @@ def render_nasa_download_form():
         end_time = st.time_input("End Time", value=time(12, 30))
     
     # Configuration section
-    st.markdown("### ⚙️ Configuration")
+    st.markdown("### Configuration")
     
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -697,7 +697,7 @@ def render_nasa_download_form():
 
     
     # Download button
-    if st.button(f"🚀 Download {instrument_key.upper()} Data", type="primary", use_container_width=True):
+    if st.button(f"Download {instrument_key.upper()} Data", type="primary", use_container_width=True):
         trange = format_trange(start_date, start_time, end_date, end_time)
         
         with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
@@ -732,11 +732,11 @@ def render_nasa_download_form():
                 }
                 
                 total_pts = sum(len(v) for v in st.session_state.data.values())
-                st.success(f"✅ Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
                 st.rerun()
                 
             except Exception as e:
-                st.error(f"❌ Download failed: {e}")
+                st.error(f"Download failed: {e}")
     
     # Footer disclaimer
     st.markdown("---")
@@ -771,18 +771,18 @@ def render_upload_form():
                 'loader': loader
             }
             
-            st.success(f"✅ Loaded: {uploaded_file.name}")
+            st.success(f"Loaded: {uploaded_file.name}")
             st.rerun()
             
         except Exception as e:
-            st.error(f"❌ Error loading file: {e}")
+            st.error(f"Error loading file: {e}")
 
 
 def render_sidebar():
     """Render the sidebar with global controls and analysis navigation."""
     
     with st.sidebar:
-        st.markdown("### 🎛️ Global Controls")
+        st.markdown("### Global Controls")
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
@@ -828,11 +828,11 @@ def render_sidebar():
         
         # Memory cost estimate
         if subsample_pts < 50000:
-            st.caption("💚 Est. Memory: **Low**")
+            st.caption("Est. Memory: **Low**")
         elif subsample_pts < 500000:
-            st.caption("🟡 Est. Memory: **Medium**")
+            st.caption("Est. Memory: **Medium**")
         else:
-            st.caption("🔴 Est. Memory: **High**")
+            st.caption("Est. Memory: **High**")
         
         st.divider()
         
@@ -853,7 +853,7 @@ def render_sidebar():
                     duration_str = f"{hours}h {minutes}m {seconds}s"
                 else:
                     duration_str = f"{minutes}m {seconds}s"
-                st.info(f"📅 **Duration:** {duration_str}", icon="⏱️")
+                st.info(f"**Duration:** {duration_str}")
             except:
                 pass
         
@@ -862,15 +862,15 @@ def render_sidebar():
         if data_rate:
             st.markdown("**Data Rate Info**")
             if data_rate == 'srvy':
-                st.caption("📊 SRVY cadence ≈ **4.5 s** (FGM) / **4.5 s** (FPI)")
+                st.caption("SRVY cadence ≈ **4.5 s** (FGM) / **4.5 s** (FPI)")
             elif data_rate == 'brst':
-                st.warning("⚡ BURST mode — not available for long durations", icon="⚠️")
+                st.warning("BURST mode — not available for long durations")
             elif data_rate == 'fast':
-                st.caption("📊 FAST cadence ≈ **4.5 s**")
+                st.caption("FAST cadence ≈ **4.5 s**")
             st.divider()
         
         # Analysis mode navigation
-        st.markdown("### 📊 Analysis Mode")
+        st.markdown("### Analysis Mode")
         
         if data_loaded:
             analysis_mode = st.radio(
@@ -880,14 +880,14 @@ def render_sidebar():
                 key="analysis_mode"
             )
         else:
-            st.info("Load data to enable analysis", icon="ℹ️")
+            st.info("Load data to enable analysis")
             analysis_mode = None
         
         st.divider()
         
         # Data Export section (only when data is loaded)
         if data_loaded and data:
-            st.markdown("### 📥 Export Data")
+            st.markdown("### Export Data")
             
             dataset_keys = list(data.keys())
             export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
@@ -905,7 +905,7 @@ def render_sidebar():
                 if "CSV" in export_format:
                     csv_data = export_df.to_csv(index=True)
                     st.download_button(
-                        label="⬇️ Download CSV",
+                        label="Download CSV",
                         data=csv_data,
                         file_name=f"mms_{export_dataset.lower()}_data.csv",
                         mime="text/csv",
@@ -914,7 +914,7 @@ def render_sidebar():
                 else:
                     txt_data = export_df.to_csv(sep='\t', index=True)
                     st.download_button(
-                        label="⬇️ Download TXT",
+                        label="Download TXT",
                         data=txt_data,
                         file_name=f"mms_{export_dataset.lower()}_data.txt",
                         mime="text/plain",
@@ -925,7 +925,7 @@ def render_sidebar():
         
         # Load new data button
         if data_loaded:
-            if st.button("🔄 Load New Data", use_container_width=True):
+            if st.button("Load New Data", use_container_width=True):
                 st.session_state.data = None
                 st.session_state.data_loaded = False
                 st.session_state.download_info = {}
@@ -935,7 +935,7 @@ def render_sidebar():
             # Show current data info
             if info:
                 st.caption(
-                    f"📍 MMS{info.get('probe', '?')} {info.get('instrument', '')} "
+                    f"MMS{info.get('probe', '?')} {info.get('instrument', '')} "
                     f"{info.get('coord', '')} ({info.get('data_rate', '')}/{info.get('level', '')})"
                 )
     
