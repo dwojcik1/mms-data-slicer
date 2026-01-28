@@ -587,9 +587,7 @@ MMS_INSTRUMENTS = {
 def render_data_loader():
     """Render the main page data configuration wizard."""
     
-    # Open custom glass container div
-    st.markdown('<div class="data-config-container">', unsafe_allow_html=True)
-    
+
     # Main title
     st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab 🛰️")
     st.markdown("### Data Configuration 📡")
@@ -626,9 +624,8 @@ def render_data_loader():
         """,
         unsafe_allow_html=True
     )
-    
-    # Close custom glass container div
-    st.markdown('</div>', unsafe_allow_html=True)
+
+
 
 
 def render_nasa_download_form():
