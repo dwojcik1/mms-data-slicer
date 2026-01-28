@@ -660,7 +660,14 @@ def render_nasa_download_form():
         return
     
     # Time Range section
-    st.markdown("###  Time Range")
+    st.markdown("### Time Range")
+    
+    # Show latest data availability
+    from utils import get_latest_data_time, get_mms_dataset_id
+    dataset_id = get_mms_dataset_id('1', instrument_key, 'srvy' if instrument_key == 'fgm' else 'fast', 'l2')
+    latest_time = get_latest_data_time(dataset_id)
+    if latest_time:
+        st.caption(f"📅 Latest data available up to: **{latest_time}**")
     
     from datetime import date, time, timedelta
     
@@ -676,6 +683,7 @@ def render_nasa_download_form():
         end_date = st.date_input("End Date", value=default_end)
     with t4:
         end_time = st.time_input("End Time", value=time(12, 30))
+
     
     # Configuration section
     st.markdown("### Configuration")
@@ -738,9 +746,14 @@ def render_nasa_download_form():
             except Exception as e:
                 st.error(f"Download failed: {e}")
     
-    # Footer disclaimer
+    # Footer disclaimer (centered)
     st.markdown("---")
-    st.caption("📝 *Note: Data will not be saved to your local device unless explicitly requested.*")
+    st.markdown(
+        "<p style='text-align: center; opacity: 0.7; font-size: 0.85em;'>"
+        "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+        "</p>",
+        unsafe_allow_html=True
+    )
 
 
 def render_upload_form():

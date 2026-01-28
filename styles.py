@@ -15,6 +15,16 @@ def apply_custom_css():
     st.markdown("""
     <style>
     /* ==========================================================================
+       FONT IMPORT - SPACE GROTESK
+       ========================================================================== */
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    
+    /* Global font application */
+    html, body, [class*="st-"], .stApp, .stApp * {
+        font-family: 'Space Grotesk', sans-serif !important;
+    }
+    
+    /* ==========================================================================
        ROOT APPLICATION - ELIMINATE WHITE BACKGROUND
        ========================================================================== */
     .stApp {
@@ -43,14 +53,15 @@ def apply_custom_css():
     }
     
     /* ==========================================================================
-       SIDEBAR - DARK GLASS PANEL
+       SIDEBAR - PRONOUNCED DARK PANEL
        ========================================================================== */
     section[data-testid="stSidebar"],
     [data-testid="stSidebar"],
     .stSidebar {
-        background: rgba(11, 15, 25, 0.85) !important;
-        background-color: rgba(11, 15, 25, 0.85) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.03) !important;
+        background: #111625 !important;
+        background-color: #111625 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 2px 0 15px rgba(0, 0, 0, 0.5) !important;
     }
     
     section[data-testid="stSidebar"] > div,
@@ -60,6 +71,7 @@ def apply_custom_css():
         background: transparent !important;
         background-color: transparent !important;
     }
+
     
     /* ==========================================================================
        GLOBAL TEXT COLOR - WHITE ON DARK

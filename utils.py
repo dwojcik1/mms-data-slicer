@@ -582,3 +582,61 @@ def extract_component(data: np.ndarray, component: str) -> np.ndarray:
         raise ValueError(f"Component index {idx} out of range for data with {data.shape[1]} components")
     
     return data[:, idx]
+
+
+# ============================================================================
+# Latest Data Availability Checker
+# ============================================================================
+
+import streamlit as st
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_latest_data_time(dataset_id: str) -> str:
+    """
+    Get the latest available data time from NASA CDAWeb.
+    
+    Uses cdasws to query dataset inventory and returns the end time
+    as a formatted string.
+    
+    Args:
+        dataset_id: CDAWeb dataset identifier (e.g., 'MMS1_FGM_SRVY_L2')
+        
+    Returns:
+        Formatted date string or None if query fails
+    """
+    try:
+        from cdasws import CdasWs
+        cdas = CdasWs()
+        
+        # Get dataset info which includes TimeInterval
+        datasets = cdas.get_datasets(idPattern=dataset_id)
+        if datasets:
+            time_interval = datasets[0].get('TimeInterval', {})
+            end_time = time_interval.get('End', None)
+            if end_time:
+                # Format: "2025-12-21T00:00:06.000Z" -> "2025-12-21"
+                return str(end_time)[:10]
+        return None
+    except Exception:
+        return None
+
+
+def get_mms_dataset_id(probe: str, instrument: str, data_rate: str, level: str) -> str:
+    """
+    Construct CDAWeb dataset ID from instrument parameters.
+    
+    Args:
+        probe: MMS probe number ('1', '2', '3', '4')
+        instrument: Instrument key ('fgm', 'fpi')
+        data_rate: Data rate ('srvy', 'brst', 'fast')
+        level: Data level ('l2')
+        
+    Returns:
+        CDAWeb dataset ID string
+    """
+    if instrument == 'fgm':
+        return f"MMS{probe}_FGM_{data_rate.upper()}_{level.upper()}"
+    elif instrument == 'fpi':
+        return f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_DIS-MOMS"
+    else:
+        return f"MMS{probe}_{instrument.upper()}_{data_rate.upper()}_{level.upper()}"
