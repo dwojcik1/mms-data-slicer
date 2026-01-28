@@ -9,11 +9,12 @@ import streamlit.components.v1 as components
 
 # MUST be first Streamlit command
 st.set_page_config(
-    page_title="MMS Turbulence Analysis Suite",
+    page_title="MMS Turbulence Laboratory",
     page_icon="🛰️",
     layout="wide",
     initial_sidebar_state="auto"
 )
+
 
 
 
@@ -590,8 +591,11 @@ def render_data_loader():
     _, col_center, _ = st.columns([1, 2, 1])
     
     with col_center:
-        st.markdown("## 📡 Data Configuration")
+        # Main title
+        st.markdown("## �️ Magnetospheric Multiscale (MMS) Turbulence Laboratory")
         st.markdown("Select your data source and configure the download parameters.")
+        
+        st.markdown("")  # Spacer
         
         # Data source selection
         data_source = st.radio(
@@ -607,7 +611,21 @@ def render_data_loader():
             render_nasa_download_form()
         else:
             render_upload_form()
-
+        
+        # Acknowledgments footer
+        st.markdown("---")
+        st.markdown(
+            """
+            <div style="text-align: center; opacity: 0.7; font-size: 0.85em; padding: 20px 0;">
+                <strong>Acknowledgments:</strong> This work relies on efforts of the entire MMS mission team, 
+                including development, science operations, and the Science Data Center at the University of Colorado.<br>
+                <a href="http://doi.org/10.1007/s11214-015-0164-9" target="_blank" style="color: #818cf8;">
+                    J.L. Burch et al., Space Sci Rev (2016) — Mission Overview
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
 def render_nasa_download_form():
@@ -761,35 +779,95 @@ def render_upload_form():
 
 
 def render_sidebar():
-    """Render the sidebar with settings and analysis navigation."""
+    """Render the sidebar with global controls and analysis navigation."""
     
     with st.sidebar:
-        st.markdown("### ⚙️ Settings")
+        st.markdown("### 🎛️ Global Controls")
         
-        # Dynamic subsample slider based on loaded data
+        # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
         data_loaded = st.session_state.get('data_loaded', False)
         
         if data_loaded and data:
-            # Calculate total data length from all datasets
             total_len = sum(len(df) for df in data.values() if hasattr(df, '__len__'))
             max_pts = max(1000, total_len)
             default_pts = min(30000, total_len)
         else:
             max_pts = 100000
             default_pts = 30000
+            total_len = 0
         
-        subsample_pts = st.slider(
-            "Subsample Points",
-            min_value=1000,
-            max_value=max_pts,
-            value=default_pts,
-            step=1000,
-            help="Number of points to display for performance",
-            key="global_subsample"
-        )
+        # Dual-input interface: Slider + Number input
+        st.markdown("**Subsample Points**")
+        slider_col, num_col = st.columns([2, 1])
+        
+        with slider_col:
+            subsample_slider = st.slider(
+                "Subsample",
+                min_value=1000,
+                max_value=max_pts,
+                value=default_pts,
+                step=1000,
+                label_visibility="collapsed",
+                key="subsample_slider"
+            )
+        
+        with num_col:
+            subsample_num = st.number_input(
+                "Points",
+                min_value=1000,
+                max_value=max_pts,
+                value=subsample_slider,
+                step=1000,
+                label_visibility="collapsed",
+                key="subsample_num"
+            )
+        
+        # Use the number input value (which syncs from slider default)
+        subsample_pts = subsample_num
+        
+        # Memory cost estimate
+        if subsample_pts < 50000:
+            st.caption("💚 Est. Memory: **Low**")
+        elif subsample_pts < 500000:
+            st.caption("🟡 Est. Memory: **Medium**")
+        else:
+            st.caption("🔴 Est. Memory: **High**")
         
         st.divider()
+        
+        # Time Context Section (show duration from download info)
+        info = st.session_state.get('download_info', {})
+        trange = info.get('trange', None)
+        if trange and len(trange) == 2:
+            try:
+                from datetime import datetime
+                start_dt = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
+                end_dt = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
+                duration = end_dt - start_dt
+                hours, remainder = divmod(duration.seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                if duration.days > 0:
+                    duration_str = f"{duration.days}d {hours}h {minutes}m"
+                elif hours > 0:
+                    duration_str = f"{hours}h {minutes}m {seconds}s"
+                else:
+                    duration_str = f"{minutes}m {seconds}s"
+                st.info(f"📅 **Duration:** {duration_str}", icon="⏱️")
+            except:
+                pass
+        
+        # Data Rate Warnings
+        data_rate = info.get('data_rate', '')
+        if data_rate:
+            st.markdown("**Data Rate Info**")
+            if data_rate == 'srvy':
+                st.caption("📊 SRVY cadence ≈ **4.5 s** (FGM) / **4.5 s** (FPI)")
+            elif data_rate == 'brst':
+                st.warning("⚡ BURST mode — not available for long durations", icon="⚠️")
+            elif data_rate == 'fast':
+                st.caption("📊 FAST cadence ≈ **4.5 s**")
+            st.divider()
         
         # Analysis mode navigation
         st.markdown("### 📊 Analysis Mode")
@@ -811,7 +889,6 @@ def render_sidebar():
         if data_loaded and data:
             st.markdown("### 📥 Export Data")
             
-            # Get first dataset for export
             dataset_keys = list(data.keys())
             export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
             export_format = st.selectbox(
@@ -822,7 +899,6 @@ def render_sidebar():
             
             df = data.get(export_dataset)
             if df is not None and hasattr(df, 'to_csv'):
-                # Clean column names for export
                 export_df = df.copy()
                 export_df.columns = [col.replace('_', '') for col in export_df.columns]
                 
@@ -850,7 +926,6 @@ def render_sidebar():
         # Load new data button
         if data_loaded:
             if st.button("🔄 Load New Data", use_container_width=True):
-                # Clear session state
                 st.session_state.data = None
                 st.session_state.data_loaded = False
                 st.session_state.download_info = {}
@@ -858,7 +933,6 @@ def render_sidebar():
                 st.rerun()
             
             # Show current data info
-            info = st.session_state.get('download_info', {})
             if info:
                 st.caption(
                     f"📍 MMS{info.get('probe', '?')} {info.get('instrument', '')} "
@@ -866,6 +940,7 @@ def render_sidebar():
                 )
     
     return analysis_mode, subsample_pts
+
 
 
 

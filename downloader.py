@@ -11,8 +11,10 @@ from typing import List, Optional
 import warnings
 import tempfile
 import os
+import streamlit as st
 
 
+@st.cache_data(show_spinner="Downloading FGM data from NASA CDAWeb...")
 def load_fgm_cdasws(
     trange: List[str],
     probe: str = '1',
@@ -20,6 +22,7 @@ def load_fgm_cdasws(
     level: str = 'l2',
     coord: str = 'gse'
 ) -> pd.DataFrame:
+
     """
     Download MMS FGM (Fluxgate Magnetometer) data using CDAWeb API.
     
@@ -191,6 +194,8 @@ def load_fgm_cdasws(
     return df
 
 
+
+@st.cache_data(show_spinner="Downloading FPI data from NASA CDAWeb...")
 def load_fpi_cdasws(
     trange: List[str],
     probe: str = '1',
@@ -198,6 +203,7 @@ def load_fpi_cdasws(
     level: str = 'l2',
     coord: str = 'gse'
 ) -> dict:
+
     """
     Download MMS FPI (Fast Plasma Investigation) data using CDAWeb API.
     
