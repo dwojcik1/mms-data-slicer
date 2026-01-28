@@ -587,22 +587,20 @@ def extract_component(data: np.ndarray, component: str) -> np.ndarray:
 # ============================================================================
 # Latest Data Availability Checker
 # ============================================================================
-
 import streamlit as st
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def get_latest_data_time(dataset_id: str) -> str:
+def get_data_time_range(dataset_id: str) -> tuple:
     """
-    Get the latest available data time from NASA CDAWeb.
+    Get the available data time range from NASA CDAWeb.
     
-    Uses cdasws to query dataset inventory and returns the end time
-    as a formatted string.
+    Uses cdasws to query dataset inventory and returns both start and end times.
     
     Args:
         dataset_id: CDAWeb dataset identifier (e.g., 'MMS1_FGM_SRVY_L2')
         
     Returns:
-        Formatted date string or None if query fails
+        Tuple of (start_date, end_date) as strings, or (None, None) if query fails
     """
     try:
         from cdasws import CdasWs
@@ -612,13 +610,22 @@ def get_latest_data_time(dataset_id: str) -> str:
         datasets = cdas.get_datasets(idPattern=dataset_id)
         if datasets:
             time_interval = datasets[0].get('TimeInterval', {})
+            start_time = time_interval.get('Start', None)
             end_time = time_interval.get('End', None)
-            if end_time:
+            if start_time and end_time:
                 # Format: "2025-12-21T00:00:06.000Z" -> "2025-12-21"
-                return str(end_time)[:10]
-        return None
+                return str(start_time)[:10], str(end_time)[:10]
+        return None, None
     except Exception:
-        return None
+        return None, None
+
+
+# Keep backward compatibility
+def get_latest_data_time(dataset_id: str) -> str:
+    """Get the latest available data time (backward compatible)."""
+    _, end_time = get_data_time_range(dataset_id)
+    return end_time
+
 
 
 def get_mms_dataset_id(probe: str, instrument: str, data_rate: str, level: str) -> str:

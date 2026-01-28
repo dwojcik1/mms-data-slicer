@@ -646,7 +646,7 @@ def render_nasa_download_form():
     st.markdown("### Instrument Selection")
     
     instrument_name = st.selectbox(
-        "Select Instrument",
+        "Select MMS Instrument",
         list(MMS_INSTRUMENTS.keys()),
         index=0
     )
@@ -655,6 +655,12 @@ def render_nasa_download_form():
     instrument_key = instrument_info["key"]
     is_active = instrument_info["active"]
     
+    # Dynamic instrument description
+    if instrument_key == 'fgm':
+        st.caption("*Load MMS Fluxgate Magnetometer data*")
+    elif instrument_key == 'fpi':
+        st.caption("*Load MMS Fast Plasma Investigation data*")
+    
     if not is_active:
         st.info(f"**Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI")
         return
@@ -662,12 +668,12 @@ def render_nasa_download_form():
     # Time Range section
     st.markdown("### Time Range")
     
-    # Show latest data availability
-    from utils import get_latest_data_time, get_mms_dataset_id
+    # Show full data availability range
+    from utils import get_data_time_range, get_mms_dataset_id
     dataset_id = get_mms_dataset_id('1', instrument_key, 'srvy' if instrument_key == 'fgm' else 'fast', 'l2')
-    latest_time = get_latest_data_time(dataset_id)
-    if latest_time:
-        st.caption(f"📅 Latest data available up to: **{latest_time}**")
+    start_avail, end_avail = get_data_time_range(dataset_id)
+    if start_avail and end_avail:
+        st.caption(f"📅 Data available from: **{start_avail}** to **{end_avail}**")
     
     from datetime import date, time, timedelta
     
@@ -693,19 +699,23 @@ def render_nasa_download_form():
         probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
     with c2:
         if instrument_key == 'fgm':
-            data_rate = st.selectbox("Data Rate", ['srvy', 'brst', 'fast', 'slow'], index=0)
+            data_rate_display = st.selectbox("Data Rate", ['SRVY', 'BRST', 'FAST', 'SLOW'], index=0)
         else:
-            data_rate = st.selectbox("Data Rate", ['fast', 'brst'], index=0)
+            data_rate_display = st.selectbox("Data Rate", ['FAST', 'BRST'], index=0)
+        data_rate = data_rate_display.lower()  # Convert to lowercase for backend
     with c3:
-        level = st.selectbox("Level", ['l2'], index=0)
+        level_display = st.selectbox("Level", ['L2'], index=0)
+        level = level_display.lower()  # Convert to lowercase for backend
     with c4:
-        coord = st.selectbox("Coordinates", ['gse', 'gsm'], index=0)
+        coord_display = st.selectbox("Coordinates", ['GSM', 'GSE'], index=0)
+        coord = coord_display.lower()  # Convert to lowercase for backend
     
     st.markdown("")  # Spacer
 
     
     # Download button
-    if st.button(f"Download {instrument_key.upper()} Data", type="primary", use_container_width=True):
+    if st.button(f"Load {instrument_key.upper()} Data", type="primary", use_container_width=True):
+
         trange = format_trange(start_date, start_time, end_date, end_time)
         
         with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
