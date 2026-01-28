@@ -622,6 +622,102 @@ MMS_INSTRUMENTS = {
     },
 }
 
+# Instrument parameter configuration for PySPEDAS
+# Defines available rates, levels, and datatypes for each instrument
+INSTRUMENT_CONFIG = {
+    "fgm": {
+        "rates": ["SRVY", "BRST", "FAST", "SLOW"],
+        "levels": ["L2", "L1B", "QL"],
+        "types": [],  # datatype not used for FGM
+        "has_coord": True,
+        "coords": ["GSM", "GSE"]
+    },
+    "fpi": {
+        "rates": ["FAST", "BRST"],
+        "levels": ["L2", "QL", "L1B"],
+        "types": ["DIS-MOMS", "DES-MOMS", "DIS-MOMSAUX", "DES-MOMSAUX", 
+                  "DIS-DIST", "DES-DIST", "DIS-PARTMOMS", "DES-PARTMOMS"],
+        "has_coord": True,
+        "coords": ["GSM", "GSE"]
+    },
+    "scm": {
+        "rates": ["SRVY", "BRST", "FAST", "SLOW"],
+        "levels": ["L2", "L1B"],
+        "types": ["SCSRVY", "SCB", "SCF", "SCHB", "SCS", "SCM", "CAL"],
+        "has_coord": False,
+        "coords": []
+    },
+    "fsm": {
+        "rates": ["BRST"],
+        "levels": ["L3"],
+        "types": ["8KHZ"],
+        "has_coord": False,
+        "coords": []
+    },
+    "edp": {
+        "rates": ["SRVY", "FAST", "SLOW", "BRST"],
+        "levels": ["L2", "L1B", "QL"],
+        "types": ["DCE", "DCV", "ACE", "HMFE"],
+        "has_coord": False,
+        "coords": []
+    },
+    "edi": {
+        "rates": ["SRVY", "FAST", "SLOW"],
+        "levels": ["L2", "QL"],
+        "types": ["EFIELD", "AMB"],
+        "has_coord": False,
+        "coords": []
+    },
+    "feeps": {
+        "rates": ["SRVY", "BRST"],
+        "levels": ["L2", "L1B"],
+        "types": ["ELECTRON", "ION"],
+        "has_coord": False,
+        "coords": []
+    },
+    "eis": {
+        "rates": ["SRVY", "BRST"],
+        "levels": ["L2"],
+        "types": ["PHXTOF", "EXTOF", "ELECTRONENERGY"],
+        "has_coord": False,
+        "coords": []
+    },
+    "aspoc": {
+        "rates": ["SRVY", "SITL"],
+        "levels": ["L2"],
+        "types": [],  # datatype ignored
+        "has_coord": False,
+        "coords": []
+    },
+    "hpca": {
+        "rates": ["SRVY", "BRST"],
+        "levels": ["L2"],
+        "types": ["MOMENTS", "ION"],
+        "has_coord": False,
+        "coords": []
+    },
+    "mec": {
+        "rates": ["SRVY", "BRST"],
+        "levels": ["L2"],
+        "types": ["EPHT89Q", "EPHT89D", "EPHTS04D"],
+        "has_coord": False,
+        "coords": []
+    },
+    "state": {
+        "rates": [],  # no rate for STATE
+        "levels": ["DEF", "PRED"],
+        "types": ["POS", "VEL", "SPINRAS", "SPINDEC"],
+        "has_coord": False,
+        "coords": []
+    },
+    "tqf": {
+        "rates": [],  # no rate for TQF
+        "levels": [],
+        "types": ["QUAL"],
+        "has_coord": False,
+        "coords": []
+    },
+}
 
 
 def render_data_loader():
@@ -700,9 +796,9 @@ def render_nasa_download_form():
     if instrument_desc:
         st.caption(f"*{instrument_desc}*")
     
+    # Note for inactive instruments (but don't return - show the UI)
     if not is_active:
-        st.info(f"**Support for {instrument_name} is coming soon.**\n\nCurrently available: FGM, FPI")
-        return
+        st.warning(f"⚠️ **{instrument_key.upper()} download not yet implemented.** UI preview only.")
 
     
     # Time Range section
@@ -731,30 +827,79 @@ def render_nasa_download_form():
         end_time = st.time_input("End Time", value=time(12, 30))
 
     
-    # Configuration section
+    # Configuration section - dynamic based on instrument
     st.markdown("### Configuration")
     
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
+    # Get instrument-specific config
+    inst_config = INSTRUMENT_CONFIG.get(instrument_key, {})
+    rates = inst_config.get("rates", [])
+    levels = inst_config.get("levels", [])
+    types = inst_config.get("types", [])
+    has_coord = inst_config.get("has_coord", False)
+    coords = inst_config.get("coords", [])
+    
+    # Determine number of columns based on available options
+    col_count = 1  # Always have Probe
+    if rates: col_count += 1
+    if levels: col_count += 1
+    if types: col_count += 1
+    if has_coord and coords: col_count += 1
+    
+    cols = st.columns(col_count)
+    col_idx = 0
+    
+    # Probe (always shown)
+    with cols[col_idx]:
         probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
-    with c2:
-        if instrument_key == 'fgm':
-            data_rate_display = st.selectbox("Data Rate", ['SRVY', 'BRST', 'FAST', 'SLOW'], index=0)
-        else:
-            data_rate_display = st.selectbox("Data Rate", ['FAST', 'BRST'], index=0)
-        data_rate = data_rate_display.lower()  # Convert to lowercase for backend
-    with c3:
-        level_display = st.selectbox("Level", ['L2'], index=0)
-        level = level_display.lower()  # Convert to lowercase for backend
-    with c4:
-        coord_display = st.selectbox("Coordinates", ['GSM', 'GSE'], index=0)
-        coord = coord_display.lower()  # Convert to lowercase for backend
+    col_idx += 1
+    
+    # Data Rate (if available)
+    data_rate = None
+    if rates:
+        with cols[col_idx]:
+            data_rate_display = st.selectbox("Data Rate", rates, index=0)
+            data_rate = data_rate_display.lower()
+        col_idx += 1
+    
+    # Level (if available)
+    level = None
+    if levels:
+        with cols[col_idx]:
+            level_display = st.selectbox("Level", levels, index=0)
+            level = level_display.lower()
+        col_idx += 1
+    
+    # Datatype (if available)
+    datatype = None
+    if types:
+        with cols[col_idx]:
+            datatype_display = st.selectbox("Datatype", types, index=0)
+            datatype = datatype_display.lower()
+        col_idx += 1
+    
+    # Coordinates (if available for this instrument)
+    coord = None
+    if has_coord and coords:
+        with cols[col_idx]:
+            coord_display = st.selectbox("Coordinates", coords, index=0)
+            coord = coord_display.lower()
     
     st.markdown("")  # Spacer
 
     
     # Download button
     if st.button(f"Load {instrument_key.upper()} Data", type="primary", use_container_width=True):
+        
+        # Check if instrument is active (has backend support)
+        if not is_active:
+            st.info(f"🚧 **{instrument_key.upper()} download backend not yet implemented.**\n\n"
+                    f"Selected parameters:\n"
+                    f"- Probe: MMS{probe}\n"
+                    f"- Rate: {data_rate.upper() if data_rate else 'N/A'}\n"
+                    f"- Level: {level.upper() if level else 'N/A'}\n"
+                    f"- Datatype: {datatype.upper() if datatype else 'N/A'}\n"
+                    f"- Coordinates: {coord.upper() if coord else 'N/A'}")
+            return
 
         trange = format_trange(start_date, start_time, end_date, end_time)
         
@@ -769,7 +914,7 @@ def render_nasa_download_form():
                         coord=coord
                     )
                     st.session_state.data = {'FGM': df}
-                else:
+                elif instrument_key == 'fpi':
                     datasets = load_fpi_cdasws(
                         trange=trange,
                         probe=probe,
@@ -778,13 +923,16 @@ def render_nasa_download_form():
                         coord=coord
                     )
                     st.session_state.data = datasets
+                else:
+                    st.error(f"Backend for {instrument_key.upper()} not implemented")
+                    return
                 
                 st.session_state.data_loaded = True
                 st.session_state.download_info = {
                     'probe': probe,
                     'data_rate': data_rate,
                     'level': level,
-                    'coord': coord.upper(),
+                    'coord': coord.upper() if coord else '',
                     'trange': trange,
                     'instrument': instrument_key.upper()
                 }
@@ -795,6 +943,7 @@ def render_nasa_download_form():
                 
             except Exception as e:
                 st.error(f"Download failed: {e}")
+
     
     # Footer disclaimer (centered)
     st.markdown("---")
