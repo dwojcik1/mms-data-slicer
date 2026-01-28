@@ -12,8 +12,9 @@ st.set_page_config(
     page_title="MMS Turbulence Analysis Suite",
     page_icon="🛰️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
+
 
 
 import numpy as np
@@ -585,23 +586,28 @@ MMS_INSTRUMENTS = {
 def render_data_loader():
     """Render the main page data configuration wizard."""
     
-    st.markdown("## 📡 Data Configuration")
-    st.markdown("Select your data source and configure the download parameters.")
+    # Center the wizard content on large screens with 1:2:1 ratio
+    _, col_center, _ = st.columns([1, 2, 1])
     
-    # Data source selection
-    data_source = st.radio(
-        "Data Source",
-        ["Download from NASA CDAWeb", "Upload own .CDF files"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    
-    st.divider()
-    
-    if data_source == "Download from NASA CDAWeb":
-        render_nasa_download_form()
-    else:
-        render_upload_form()
+    with col_center:
+        st.markdown("## 📡 Data Configuration")
+        st.markdown("Select your data source and configure the download parameters.")
+        
+        # Data source selection
+        data_source = st.radio(
+            "Data Source",
+            ["Download from NASA CDAWeb", "Upload own .CDF files"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
+        
+        st.divider()
+        
+        if data_source == "Download from NASA CDAWeb":
+            render_nasa_download_form()
+        else:
+            render_upload_form()
+
 
 
 def render_nasa_download_form():
@@ -760,12 +766,24 @@ def render_sidebar():
     with st.sidebar:
         st.markdown("### ⚙️ Settings")
         
-        # Subsample factor at top
+        # Dynamic subsample slider based on loaded data
+        data = st.session_state.get('data', None)
+        data_loaded = st.session_state.get('data_loaded', False)
+        
+        if data_loaded and data:
+            # Calculate total data length from all datasets
+            total_len = sum(len(df) for df in data.values() if hasattr(df, '__len__'))
+            max_pts = max(1000, total_len)
+            default_pts = min(30000, total_len)
+        else:
+            max_pts = 100000
+            default_pts = 30000
+        
         subsample_pts = st.slider(
             "Subsample Points",
             min_value=1000,
-            max_value=50000,
-            value=15000,
+            max_value=max_pts,
+            value=default_pts,
             step=1000,
             help="Number of points to display for performance",
             key="global_subsample"
@@ -776,7 +794,7 @@ def render_sidebar():
         # Analysis mode navigation
         st.markdown("### 📊 Analysis Mode")
         
-        if st.session_state.get('data_loaded', False):
+        if data_loaded:
             analysis_mode = st.radio(
                 "Select Analysis",
                 ["Time Series Inspector", "Power Spectral Density", "PDF & Moments", "Summary Statistics"],
@@ -789,8 +807,48 @@ def render_sidebar():
         
         st.divider()
         
+        # Data Export section (only when data is loaded)
+        if data_loaded and data:
+            st.markdown("### 📥 Export Data")
+            
+            # Get first dataset for export
+            dataset_keys = list(data.keys())
+            export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
+            export_format = st.selectbox(
+                "Format", 
+                ["CSV (.csv)", "Text File (.txt)"],
+                key="export_format"
+            )
+            
+            df = data.get(export_dataset)
+            if df is not None and hasattr(df, 'to_csv'):
+                # Clean column names for export
+                export_df = df.copy()
+                export_df.columns = [col.replace('_', '') for col in export_df.columns]
+                
+                if "CSV" in export_format:
+                    csv_data = export_df.to_csv(index=True)
+                    st.download_button(
+                        label="⬇️ Download CSV",
+                        data=csv_data,
+                        file_name=f"mms_{export_dataset.lower()}_data.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                else:
+                    txt_data = export_df.to_csv(sep='\t', index=True)
+                    st.download_button(
+                        label="⬇️ Download TXT",
+                        data=txt_data,
+                        file_name=f"mms_{export_dataset.lower()}_data.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+            
+            st.divider()
+        
         # Load new data button
-        if st.session_state.get('data_loaded', False):
+        if data_loaded:
             if st.button("🔄 Load New Data", use_container_width=True):
                 # Clear session state
                 st.session_state.data = None
@@ -808,6 +866,7 @@ def render_sidebar():
                 )
     
     return analysis_mode, subsample_pts
+
 
 
 def render_analysis(analysis_mode: str, subsample_pts: int):
