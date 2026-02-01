@@ -149,6 +149,67 @@ body {
     font-weight: 500;
 }
 
+.info-box {
+    max-width: 800px;
+    margin: 0 auto 20px auto;
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px 32px;
+}
+
+.info-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: rgba(248, 250, 252, 0.9);
+    margin-bottom: 14px;
+    letter-spacing: -0.01em;
+}
+
+.info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.info-list li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: rgba(248, 250, 252, 0.6);
+}
+
+.info-list li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: rgba(165, 180, 252, 0.7);
+}
+
+.info-list li:last-child {
+    margin-bottom: 0;
+}
+
+.info-list a {
+    color: #a5b4fc;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.info-list a:hover {
+    color: #c7d2fe;
+    text-decoration: underline;
+}
+
+.info-list strong {
+    color: rgba(200, 210, 255, 0.85);
+    font-weight: 500;
+}
+
 .glass-icon {
     display: inline-flex;
     align-items: center;
@@ -235,6 +296,17 @@ body {
 <div class="hero">
     <div class="hero-title">MMS Turbulence Analysis Suite</div>
     <div class="hero-subtitle">Kinetic scale time series processing for space plasma physics</div>
+</div>
+
+<div class="divider"></div>
+
+<div class="info-box">
+    <div class="info-title">What this app does</div>
+    <ul class="info-list">
+        <li>Load magnetic field and plasma time series from NASA's <a href="https://mms.gsfc.nasa.gov" target="_blank">Magnetospheric Multiscale (MMS)</a> mission via CDAWeb</li>
+        <li>Compute <strong>Welch Power Spectral Densities</strong> with configurable windowing, segment overlap, and detrending options</li>
+        <li>Fit and compare <strong>inertial- and kinetic-range spectral indices</strong> against reference slopes (Kolmogorov −5/3, kinetic-range −2.8, etc.)</li>
+    </ul>
 </div>
 
 <div class="divider"></div>
