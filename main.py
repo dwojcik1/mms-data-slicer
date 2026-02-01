@@ -28,7 +28,7 @@ from utils import (
 )
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 
-from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display
+from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PSD_CONFIG
 
 
 
@@ -522,7 +522,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                 psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
                 fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_key} {selected_col}",
                                       psd_units=r"nT²/Hz" if 'B' in selected_col else "km²/s²/Hz")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
                 st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
             except Exception as e:
                 st.error(str(e))
@@ -654,7 +654,7 @@ def render_dataframe_analysis(df, time_data):
                 psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
                 fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
                                       psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
                 st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
             except Exception as e:
                 st.error(str(e))
@@ -709,8 +709,8 @@ def render_dataframe_analysis(df, time_data):
                 try:
                     psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
                     fig = create_psd_plot(psd.frequencies, psd.power, 
-                                          psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=300)
-                    st.plotly_chart(fig, use_container_width=True)
+                                          psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=300, show_fit_range=False)
+                    st.plotly_chart(fig, use_container_width=True, config=PSD_CONFIG)
                 except Exception as e:
                     st.error(str(e))
 
@@ -1492,7 +1492,7 @@ def render_psd_analysis(datasets: dict, info: dict):
         psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
         units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
         fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_key} {selected_col}", psd_units=units)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
         st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
     except Exception as e:
         st.error(str(e))
@@ -1579,8 +1579,8 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
         try:
             psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
             units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
-            fig = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=300)
-            st.plotly_chart(fig, use_container_width=True)
+            fig = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=300, show_fit_range=False)
+            st.plotly_chart(fig, use_container_width=True, config=PSD_CONFIG)
         except Exception as e:
             st.error(str(e))
 
