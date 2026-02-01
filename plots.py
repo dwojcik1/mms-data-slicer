@@ -10,7 +10,32 @@ from typing import Optional, List, Dict, Any
 
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 
-# Responsive layout defaults
+# Grid color - very light grey (matches TS plots)
+GRID_COLOR = '#E5E5E5'
+
+# Publication-quality layout defaults (matches time series plots)
+PUBLICATION_LAYOUT = dict(
+    # White background for visibility and clean export
+    plot_bgcolor='white',
+    paper_bgcolor='white',
+    font=dict(color='black', family='Arial, sans-serif'),
+    hovermode='x unified',
+    # Legend inside plot, large font with border
+    legend=dict(
+        orientation='h',
+        yanchor='top',
+        y=0.98,
+        xanchor='right',
+        x=0.98,
+        bgcolor='rgba(255,255,255,0.95)',
+        bordercolor='rgba(0,0,0,0.3)',
+        borderwidth=1,
+        font=dict(size=12, color='black')
+    ),
+    margin=dict(l=70, r=40, t=80, b=60),
+)
+
+# Responsive layout defaults (legacy, for backwards compat)
 RESPONSIVE_LAYOUT = dict(
     template='plotly_white',
     hovermode='x unified',
@@ -501,14 +526,27 @@ def plot_time_series(df, meta, title=None):
         ),
         
         # Margins
-        margin=dict(l=60, r=20, t=80, b=60),
+        margin=dict(l=70, r=40, t=80, b=60),
         hovermode='x unified',
     )
 
-    # For strict compliance with "griddash='dash'", we use update_xaxes/yaxes
-    # Note: griddash is a valid property in recent plotly.js, accessible via python kwarg
-    fig.update_xaxes(griddash='dash')
-    fig.update_yaxes(griddash='dash')
+    # Axis styling (standardized across all plots)
+    fig.update_xaxes(
+        griddash='dash',
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True,
+        title_standoff=15
+    )
+    fig.update_yaxes(
+        griddash='dash',
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True,
+        title_standoff=15
+    )
 
     return fig
 
@@ -577,21 +615,53 @@ def create_psd_plot(
     # Calculate square dimensions
     square_size = height
     
+    # Publication-quality layout (matches time series plots)
     fig.update_layout(
-        **RESPONSIVE_LAYOUT,
-        title=dict(text=title, font=dict(size=16), x=0.5),
-        xaxis_title="Frequency (Hz)",
-        yaxis_title=ylabel,
+        **PUBLICATION_LAYOUT,
+        title=dict(
+            text=title,
+            font=dict(size=18, color='black'),
+            x=0.5,
+            xanchor='center',
+            y=0.95
+        ),
+        xaxis_title=dict(
+            text="Frequency [Hz]",
+            font=dict(size=14, color='black')
+        ),
+        yaxis_title=dict(
+            text=ylabel,
+            font=dict(size=14, color='black')
+        ),
         xaxis_type='log',
         yaxis_type='log',
         height=square_size,
         width=square_size,  # Square aspect ratio
-        # Ensure equal visual scaling in log-log space
-        yaxis=dict(
-            scaleanchor="x",
-            scaleratio=1,
-            constrain="domain"
-        )
+    )
+    
+    # Axis styling (matches time series plots)
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor=GRID_COLOR,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        title_standoff=15,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=GRID_COLOR,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        title_standoff=15,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
     )
     
     # Add interactive frequency band selection (draggable vertical lines)
@@ -634,7 +704,7 @@ def create_psd_plot(
                 y0=y_min, y1=y_max,
                 line=dict(color="rgba(129, 140, 248, 0.8)", width=2, dash="solid"),
                 name="f_min",
-                editable=True,  # Makes it draggable!
+                editable=True,
             )
             
             # Right bound line (draggable)
@@ -644,22 +714,18 @@ def create_psd_plot(
                 y0=y_min, y1=y_max,
                 line=dict(color="rgba(129, 140, 248, 0.8)", width=2, dash="solid"),
                 name="f_max",
-                editable=True,  # Makes it draggable!
+                editable=True,
             )
-    
-    fig.update_xaxes(tickfont=dict(size=11))
-    fig.update_yaxes(tickfont=dict(size=11))
-    
-    # Add instruction annotation for interactivity
-    if show_fit_range:
-        fig.add_annotation(
-            text="💡 Drag the purple lines to adjust fit range",
-            xref="paper", yref="paper",
-            x=0.5, y=-0.12,
-            showarrow=False,
-            font=dict(size=10, color="rgba(100, 100, 100, 0.7)"),
-            align="center"
-        )
+            
+            # Add instruction annotation
+            fig.add_annotation(
+                text="💡 Drag purple lines to adjust fit range",
+                xref="paper", yref="paper",
+                x=0.5, y=-0.12,
+                showarrow=False,
+                font=dict(size=10, color="rgba(100, 100, 100, 0.7)"),
+                align="center"
+            )
     
     return fig
 
@@ -672,7 +738,7 @@ def create_pdf_plot(
     log_y=False, 
     height=400
 ):
-    """Create responsive PDF histogram plot with optional Gaussian overlay."""
+    """Create publication-quality PDF histogram plot with optional Gaussian overlay."""
     fig = go.Figure()
     
     bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 1
@@ -700,20 +766,55 @@ def create_pdf_plot(
                 line=dict(color=COLORS[1], width=2, dash='dash')
             ))
     
+    # Publication-quality layout (matches time series plots)
     fig.update_layout(
-        **RESPONSIVE_LAYOUT,
-        title=dict(text=title, font=dict(size=16), x=0.5),
-        xaxis_title=xlabel,
-        yaxis_title="Probability Density",
+        **PUBLICATION_LAYOUT,
+        title=dict(
+            text=title,
+            font=dict(size=18, color='black'),
+            x=0.5,
+            xanchor='center',
+            y=0.95
+        ),
+        xaxis_title=dict(
+            text=xlabel,
+            font=dict(size=14, color='black')
+        ),
+        yaxis_title=dict(
+            text="Probability Density",
+            font=dict(size=14, color='black')
+        ),
         height=height,
         bargap=0.05
     )
     
+    # Axis styling (matches time series plots)
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor=GRID_COLOR,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        title_standoff=15,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor=GRID_COLOR,
+        gridwidth=1,
+        tickfont=dict(size=12, color='black'),
+        title_standoff=15,
+        showline=True,
+        linewidth=1,
+        linecolor='black',
+        mirror=True
+    )
+    
     if log_y:
         fig.update_yaxes(type='log')
-    
-    fig.update_xaxes(tickfont=dict(size=10))
-    fig.update_yaxes(tickfont=dict(size=10))
     
     return fig
 
