@@ -556,24 +556,20 @@ def create_psd_plot(
     power, 
     title="Power Spectral Density",
     psd_units: str = r"PSD",
-    height=500,
-    show_fit_range: bool = True,
-    fit_range: tuple = None
+    height=600
 ):
     """
-    Create log-log PSD plot with publication-quality units and interactive fit range.
+    Create log-log PSD plot with publication-quality styling.
     
     Args:
         frequencies: Frequency array in Hz
         power: Power spectral density array
         title: Plot title (can include LaTeX)
         psd_units: Y-axis units (LaTeX formatted, e.g., r'$\\mathrm{nT}^2/\\mathrm{Hz}$')
-        height: Plot height (also used for width to create square aspect)
-        show_fit_range: Whether to show draggable frequency range selectors
-        fit_range: Optional tuple (f_min, f_max) for initial fit range bounds
+        height: Plot height in pixels
     
     Returns:
-        Plotly Figure object with interactive elements
+        Plotly Figure object
     """
     fig = go.Figure()
     
@@ -612,12 +608,12 @@ def create_psd_plot(
     # Format Y-axis label with physics units
     ylabel = f"PSD ({psd_units})" if psd_units else "Power Spectral Density"
     
-    # Calculate square dimensions
-    square_size = height
-    
-    # Publication-quality layout (matches time series plots)
+    # Publication-quality layout
     fig.update_layout(
-        **PUBLICATION_LAYOUT,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(color='black', family='Arial, sans-serif'),
+        hovermode='x unified',
         title=dict(
             text=title,
             font=dict(size=18, color='black'),
@@ -635,8 +631,20 @@ def create_psd_plot(
         ),
         xaxis_type='log',
         yaxis_type='log',
-        height=square_size,
-        width=square_size,  # Square aspect ratio
+        height=height,
+        # Legend above plot to not obscure data
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='center',
+            x=0.5,
+            bgcolor='rgba(255,255,255,0.9)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1,
+            font=dict(size=11, color='black')
+        ),
+        margin=dict(l=70, r=40, t=100, b=60),  # Extra top margin for legend
     )
     
     # Axis styling (matches time series plots)
@@ -663,69 +671,6 @@ def create_psd_plot(
         linecolor='black',
         mirror=True
     )
-    
-    # Add interactive frequency band selection (draggable vertical lines)
-    if show_fit_range and len(frequencies) > 2:
-        f_pos = frequencies[frequencies > 0]
-        if len(f_pos) > 0:
-            # Default fit range: middle decade of the spectrum
-            if fit_range is None:
-                log_f_min = np.log10(f_pos.min())
-                log_f_max = np.log10(f_pos.max())
-                log_range = log_f_max - log_f_min
-                fit_f_min = 10 ** (log_f_min + log_range * 0.25)
-                fit_f_max = 10 ** (log_f_min + log_range * 0.75)
-            else:
-                fit_f_min, fit_f_max = fit_range
-            
-            # Get y-range for the lines
-            p_pos = power[power > 0]
-            if len(p_pos) > 0:
-                y_min = p_pos.min() * 0.1
-                y_max = p_pos.max() * 10
-            else:
-                y_min, y_max = 1e-10, 1e10
-            
-            # Add shaded region between fit bounds
-            fig.add_vrect(
-                x0=fit_f_min, x1=fit_f_max,
-                fillcolor="rgba(129, 140, 248, 0.15)",
-                layer="below",
-                line_width=0,
-                annotation_text="Fit Range",
-                annotation_position="top left",
-                annotation=dict(font_size=10, font_color="rgba(129, 140, 248, 0.8)")
-            )
-            
-            # Left bound line (draggable)
-            fig.add_shape(
-                type="line",
-                x0=fit_f_min, x1=fit_f_min,
-                y0=y_min, y1=y_max,
-                line=dict(color="rgba(129, 140, 248, 0.8)", width=2, dash="solid"),
-                name="f_min",
-                editable=True,
-            )
-            
-            # Right bound line (draggable)
-            fig.add_shape(
-                type="line",
-                x0=fit_f_max, x1=fit_f_max,
-                y0=y_min, y1=y_max,
-                line=dict(color="rgba(129, 140, 248, 0.8)", width=2, dash="solid"),
-                name="f_max",
-                editable=True,
-            )
-            
-            # Add instruction annotation
-            fig.add_annotation(
-                text="💡 Drag purple lines to adjust fit range",
-                xref="paper", yref="paper",
-                x=0.5, y=-0.12,
-                showarrow=False,
-                font=dict(size=10, color="rgba(100, 100, 100, 0.7)"),
-                align="center"
-            )
     
     return fig
 
