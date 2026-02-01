@@ -397,8 +397,10 @@ def format_trange(start_date, start_time, end_date, end_time) -> List[str]:
 
 # Dataset ID patterns for each instrument
 # Format strings use: p=probe, r=rate, l=level, t=datatype, c=coord
+# Based on PySPEDAS documentation: https://pyspedas.readthedocs.io/en/latest/mms.html
 INSTRUMENT_DATASET_MAP = {
     'fgm': {
+        # Variable: mms1_fgm_b_gse_srvy_l2
         'dataset': 'MMS{p}_FGM_{r}_{l}',
         'var_patterns': ['mms{p}_fgm_b_{c}_{r}_{l}'],
         'columns': ['Bx', 'By', 'Bz', 'Bt'],
@@ -406,78 +408,92 @@ INSTRUMENT_DATASET_MAP = {
         'type': 'vector'
     },
     'scm': {
-        'dataset': 'MMS{p}_SCM_{r}_{l}',
-        'var_patterns': ['mms{p}_scm_acb_{c}_{t}_{r}_{l}', 'mms{p}_scm_acb_gse_{t}_{r}_{l}'],
+        # Variable: mms1_scm_acb_gse_scsrvy_srvy_l2
+        # SCM datatype (scsrvy, scb, etc.) goes between gse and rate
+        'dataset': 'MMS{p}_SCM_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_scm_acb_gse_{t}_{r}_{l}'],
         'columns': ['Bx', 'By', 'Bz'],
         'units': 'nT',
         'type': 'vector'
     },
     'fsm': {
-        'dataset': 'MMS{p}_FSM_{r}_{l}',
-        'var_patterns': ['mms{p}_fsm_b_{c}_{r}_{l}'],
+        # Variable: mms1_fsm_b_gse_brst_l3  (FSM is only burst, L3, 8khz)
+        'dataset': 'MMS{p}_FSM_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_fsm_b_gse_{r}_{l}'],
         'columns': ['Bx', 'By', 'Bz', 'Bt'],
         'units': 'nT',
         'type': 'vector'
     },
     'edp': {
+        # Variable: mms1_edp_dce_gse_fast_l2
         'dataset': 'MMS{p}_EDP_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_edp_{t}_{c}_{r}_{l}', 'mms{p}_edp_{t}_gse_{r}_{l}'],
+        'var_patterns': ['mms{p}_edp_{t}_gse_{r}_{l}'],
         'columns': ['Ex', 'Ey', 'Ez'],
         'units': 'mV/m',
         'type': 'vector'
     },
     'edi': {
+        # Variable: mms1_edi_e_gse_srvy_l2 (for efield datatype)
         'dataset': 'MMS{p}_EDI_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_edi_{t}_{c}_{r}_{l}', 'mms{p}_edi_e_gse_{r}_{l}'],
+        'var_patterns': ['mms{p}_edi_e_gse_{r}_{l}', 'mms{p}_edi_vdrift_gse_{r}_{l}'],
         'columns': ['Ex', 'Ey', 'Ez'],
         'units': 'mV/m',
         'type': 'vector'
     },
     'hpca': {
+        # Variable: mms1_hpca_hplus_number_density (moments datatype)
         'dataset': 'MMS{p}_HPCA_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_hpca_hplus_number_density', 'mms{p}_hpca_hplus_scalar_temperature'],
+        'var_patterns': ['mms{p}_hpca_hplus_number_density', 
+                         'mms{p}_hpca_hplus_scalar_temperature',
+                         'mms{p}_hpca_hplus_ion_bulk_velocity'],
         'columns': ['value'],
         'units': 'cm^-3',
         'type': 'scalar'
     },
     'feeps': {
+        # Variable: mms1_epd_feeps_srvy_l2_electron_intensity_omni
         'dataset': 'MMS{p}_FEEPS_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_epd_feeps_srvy_l2_electron_intensity_omni', 
-                         'mms{p}_epd_feeps_{r}_{l}_{t}_intensity_omni'],
+        'var_patterns': ['mms{p}_epd_feeps_{r}_{l}_{t}_intensity_omni'],
         'columns': ['value'],
         'units': '1/(cm^2 s sr keV)',
         'type': 'flux'
     },
     'eis': {
-        'dataset': 'MMS{p}_EIS_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_epd_eis_{r}_{l}_{t}_proton_flux_omni',
-                         'mms{p}_epd_eis_srvy_l2_phxtof_proton_flux_omni'],
+        # Variable: mms1_epd_eis_srvy_l2_extof_proton_flux_omni
+        'dataset': 'MMS{p}_EPDE_{r}_{l}_{t}',
+        'var_patterns': ['mms{p}_epd_eis_{r}_{l}_{t}_proton_flux_omni'],
         'columns': ['value'],
         'units': '1/(cm^2 s sr keV)',
         'type': 'flux'
     },
     'aspoc': {
+        # Variable: mms1_aspoc_ionc_l2
         'dataset': 'MMS{p}_ASPOC_{r}_{l}',
-        'var_patterns': ['mms{p}_aspoc_ionc', 'mms{p}_asp1_ionc'],
+        'var_patterns': ['mms{p}_aspoc_ionc_{l}', 'mms{p}_asp1_ionc_{l}', 'mms{p}_asp2_ionc_{l}'],
         'columns': ['current'],
         'units': 'μA',
         'type': 'scalar'
     },
     'mec': {
+        # Variable: mms1_mec_r_gsm (MEC has r and v for position and velocity)
         'dataset': 'MMS{p}_MEC_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_mec_r_{c}', 'mms{p}_mec_r_gse'],
+        'var_patterns': ['mms{p}_mec_r_gsm', 'mms{p}_mec_r_gse', 'mms{p}_mec_v_gsm'],
         'columns': ['X', 'Y', 'Z'],
         'units': 'km',
         'type': 'vector'
     },
     'state': {
+        # STATE uses ASCII files, not CDF - special handling needed
+        # Variable: mms1_defeph_pos (from ASCII)
         'dataset': 'MMS{p}_DEFATT',
-        'var_patterns': ['mms{p}_defatt_spinras', 'mms{p}_defatt_spindec'],
-        'columns': ['value'],
-        'units': 'deg',
-        'type': 'scalar'
+        'var_patterns': ['mms{p}_defeph_pos', 'mms{p}_defeph_vel'],
+        'columns': ['X', 'Y', 'Z'],
+        'units': 'km',
+        'type': 'vector',
+        'note': 'STATE uses ASCII files - limited CDAWeb support'
     },
     'tqf': {
+        # Tetrahedron Quality Factor - no probe number
         'dataset': 'MMS_TETRAHEDRON_QF',
         'var_patterns': ['mms_tetrahedron_qf'],
         'columns': ['QF'],

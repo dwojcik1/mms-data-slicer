@@ -278,6 +278,113 @@ def apply_custom_css():
 
     
     /* ==========================================================================
+       GLASSMORPHIC ICONS - Apple Liquid Glass Style
+       ========================================================================== */
+    .glass-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.12) 0%,
+            rgba(255, 255, 255, 0.05) 50%,
+            rgba(200, 220, 255, 0.08) 100%
+        );
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 16px;
+        box-shadow: 
+            0 8px 32px rgba(0, 0, 0, 0.12),
+            inset 0 1px 1px rgba(255, 255, 255, 0.25),
+            inset 0 -1px 1px rgba(255, 255, 255, 0.1);
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        margin-bottom: 18px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .glass-icon::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(
+            135deg,
+            rgba(255, 120, 200, 0.05) 0%,
+            rgba(120, 200, 255, 0.05) 50%,
+            rgba(200, 255, 150, 0.03) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.4s ease;
+        border-radius: inherit;
+    }
+    
+    .glass-icon:hover {
+        transform: translateY(-3px) scale(1.08);
+        border-color: rgba(255, 255, 255, 0.28);
+        box-shadow: 
+            0 12px 40px rgba(0, 0, 0, 0.15),
+            0 0 0 1px rgba(255, 255, 255, 0.1),
+            inset 0 1px 2px rgba(255, 255, 255, 0.35),
+            inset 0 -1px 2px rgba(255, 255, 255, 0.15);
+    }
+    
+    .glass-icon:hover::before {
+        opacity: 1;
+    }
+    
+    .glass-icon .material-icons,
+    .glass-icon span {
+        font-size: 26px !important;
+        background: linear-gradient(
+            135deg, 
+            rgba(255, 255, 255, 0.95) 0%, 
+            rgba(200, 210, 255, 0.9) 40%,
+            rgba(180, 200, 255, 0.85) 100%
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+    }
+    
+    /* Smaller inline icon badge */
+    .glass-icon-sm {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background: linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.1) 0%,
+            rgba(200, 220, 255, 0.08) 100%
+        );
+        backdrop-filter: blur(16px) saturate(150%);
+        -webkit-backdrop-filter: blur(16px) saturate(150%);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        box-shadow: 
+            0 4px 16px rgba(0, 0, 0, 0.1),
+            inset 0 1px 1px rgba(255, 255, 255, 0.2);
+        margin-right: 10px;
+        vertical-align: middle;
+    }
+    
+    .glass-icon-sm span {
+        font-size: 16px !important;
+        background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(200,210,255,0.85) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* ==========================================================================
        SCROLLBAR
        ========================================================================== */
     ::-webkit-scrollbar {

@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 # MUST be first Streamlit command
 st.set_page_config(
     page_title="MMS Turbulence Laboratory",
-    page_icon="🛰️",
+    page_icon="◇",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -27,7 +27,9 @@ from utils import (
     get_component_label, VariableMetadata
 )
 from physics import compute_psd_welch, compute_pdf, compute_statistics
-from plots import create_time_series_plot, create_psd_plot, create_pdf_plot, create_stats_display
+
+from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display
+
 
 
 # ============================================================================
@@ -38,6 +40,7 @@ LANDING_PAGE_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <style>
 * {
     margin: 0;
@@ -144,6 +147,78 @@ body {
 .card-body strong {
     color: rgba(165, 180, 252, 0.9);
     font-weight: 500;
+}
+
+.glass-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.12) 0%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(200, 220, 255, 0.08) 100%
+    );
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 16px;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.12),
+        inset 0 1px 1px rgba(255, 255, 255, 0.25),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.1);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    margin-bottom: 18px;
+    position: relative;
+    overflow: hidden;
+}
+
+.glass-icon::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(255, 120, 200, 0.05) 0%,
+        rgba(120, 200, 255, 0.05) 50%,
+        rgba(200, 255, 150, 0.03) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    border-radius: inherit;
+}
+
+.glass-icon:hover {
+    transform: translateY(-3px) scale(1.08);
+    border-color: rgba(255, 255, 255, 0.28);
+    box-shadow: 
+        0 12px 40px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 2px rgba(255, 255, 255, 0.35),
+        inset 0 -1px 2px rgba(255, 255, 255, 0.15);
+}
+
+.glass-icon:hover::before {
+    opacity: 1;
+}
+
+.glass-icon .material-icons {
+    font-size: 26px;
+    background: linear-gradient(
+        135deg, 
+        rgba(255, 255, 255, 0.95) 0%, 
+        rgba(200, 210, 255, 0.9) 40%,
+        rgba(180, 200, 255, 0.85) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
 }
 
 .footer {
@@ -535,14 +610,20 @@ def render_dataframe_analysis(df, time_data):
                 except Exception as e:
                     st.error(str(e))
         
+
         else:
             st.markdown(f"#### Summary: {selected_col}")
             step = max(1, len(time_data) // 8000)
-            fig = create_time_series_plot(time_data[::step], data[::step], 
-                                          title=selected_col, ylabel=f"{selected_col} (nT)", height=350)
+            
+            # Construct temp DF for the unified plotter
+            plot_df = df[[selected_col]].iloc[::step]
+            meta = {'label': selected_col, 'unit': '(nT)', 'type': 'scalar'}
+            
+            fig = plot_time_series(plot_df, meta, title=selected_col)
             st.plotly_chart(fig, use_container_width=True)
             
             c1, c2 = st.columns(2)
+
             with c1:
                 st.markdown("##### Statistics")
                 try:
@@ -656,9 +737,9 @@ INSTRUMENT_CONFIG = {
         "coords": []
     },
     "edp": {
-        "rates": ["SRVY", "FAST", "SLOW", "BRST"],
+        "rates": ["FAST", "SRVY", "SLOW", "BRST"],  # Default: fast per PySPEDAS
         "levels": ["L2", "L1B", "QL"],
-        "types": ["DCE", "DCV", "ACE", "HMFE"],
+        "types": ["DCE", "DCV", "ACE", "HMFE"],  # Default: dce
         "has_coord": False,
         "coords": []
     },
@@ -679,7 +760,7 @@ INSTRUMENT_CONFIG = {
     "eis": {
         "rates": ["SRVY", "BRST"],
         "levels": ["L2"],
-        "types": ["PHXTOF", "EXTOF", "ELECTRONENERGY"],
+        "types": ["EXTOF", "PHXTOF", "ELECTRONENERGY"],  # Default: extof per PySPEDAS
         "has_coord": False,
         "coords": []
     },
@@ -726,8 +807,8 @@ def render_data_loader():
     
 
     # Main title
-    st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab 🛰️")
-    st.markdown("### Data Configuration 📡")
+    st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab ◇")
+    st.markdown("### Data Configuration ◈")
     st.caption("Select your data source and configure the download parameters.")
     
     st.markdown("")  # Spacer
@@ -807,7 +888,7 @@ def render_nasa_download_form():
     dataset_id = get_mms_dataset_id('1', instrument_key, 'srvy' if instrument_key == 'fgm' else 'fast', 'l2')
     start_avail, end_avail = get_data_time_range(dataset_id)
     if start_avail and end_avail:
-        st.caption(f"📅 Data available from: **{start_avail}** to **{end_avail}**")
+        st.caption(f"▫ Data available from: **{start_avail}** to **{end_avail}**")
     
     from datetime import date, time, timedelta
     
@@ -939,7 +1020,7 @@ def render_nasa_download_form():
 def render_upload_form():
     """Render the CDF file upload form."""
     
-    st.markdown("### 📁 Upload CDF File")
+    st.markdown("### ▢ Upload CDF File")
     
     uploaded_file = st.file_uploader(
         "Drop your .CDF file here",
@@ -975,7 +1056,7 @@ def render_sidebar():
     """Render the sidebar with global controls and analysis navigation."""
     
     with st.sidebar:
-        st.markdown("### Global Controls ⚙️")
+        st.markdown("### Global Controls ◎")
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
@@ -1003,8 +1084,7 @@ def render_sidebar():
         # Explanation text
         st.info(
             "**Note:** Large datasets are subsampled to maintain performance. "
-            "Increasing this value improves resolution but increases memory usage.",
-            icon="ℹ️"
+            "Increasing this value improves resolution but increases memory usage."
         )
         
         st.divider()
@@ -1043,7 +1123,7 @@ def render_sidebar():
             st.divider()
         
         # Analysis mode navigation
-        st.markdown("### Analysis Mode 📊")
+        st.markdown("### Analysis Mode ▣")
         
         if data_loaded:
             analysis_mode = st.radio(
@@ -1138,89 +1218,81 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         render_summary_analysis(data, info, subsample_pts)
 
 
+
 def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
-    """Render Time Series Inspector view."""
-    from plots import plot_magnetic_field, plot_velocity_field, PLOTLY_CONFIG, EFIELD_COLORS, POSITION_COLORS, SCALAR_COLOR
+    """Render Time Series Inspector view with Unified Publication Style."""
+    from plots import plot_time_series, PLOTLY_CONFIG
     
     probe = info.get('probe', '?')
     coord = info.get('coord', 'GSE').upper()
-    instrument = info.get('instrument', '').upper()
     
     for key, df in datasets.items():
         if df is None or len(df) == 0:
             continue
         
-        # Generate dynamic title
+        # --- Metadata Map (Instrument Logic) ---
+        key_upper = key.upper()
+        cols = [str(c).lower() for c in df.columns]
+        
+        # Default
+        meta = {'label': key, 'unit': '', 'type': 'scalar'}
+        
+        if any(x in key_upper for x in ['FGM', 'SCM', 'FSM']):
+             meta = {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
+             
+        elif any(x in key_upper for x in ['EDP', 'EDI']):
+             meta = {'label': r"$\mathbf{E}$", 'unit': "[mV/m]", 'type': 'vector'}
+             
+        elif any(x in key_upper for x in ['MEC', 'STATE']):
+             meta = {'label': r"$\mathbf{R}$", 'unit': "[km]", 'type': 'vector'}
+             
+        elif any(x in key_upper for x in ['FPI', 'DIS', 'DES']):
+            # Distinguish Density vs Velocity based on column names
+            is_density = any('dens' in c or 'number' in c for c in cols)
+            if is_density:
+                meta = {'label': r"$N$", 'unit': "[cm$^{-3}$]", 'type': 'scalar'}
+            else:
+                meta = {'label': r"$\mathbf{V}$", 'unit': "[km/s]", 'type': 'vector'}
+                
+        elif 'HPCA' in key_upper:
+            # Usually density or flux, assuming density for dominant moments
+            meta = {'label': r"$N$", 'unit': "[cm$^{-3}$]", 'type': 'scalar'}
+            
+        elif any(x in key_upper for x in ['FEEPS', 'EIS']):
+            meta = {'label': r"$J$", 'unit': "[flux]", 'type': 'scalar'}
+
+        # --- Dynamic Title Generation ---
         start_dt = df.index[0]
         end_dt = df.index[-1]
         
         if start_dt.date() == end_dt.date():
             date_str = start_dt.strftime('%d %B %Y')
-            time_range = f"{start_dt.strftime('%H:%M:%S')} – {end_dt.strftime('%H:%M:%S')}"
+            time_str = f"{start_dt.strftime('%H:%M:%S')} – {end_dt.strftime('%H:%M:%S')}"
+            # e.g. "MMS 1 | B | GSE | 12 Jan 2024 | 12:00:00 - 14:00:00"
+            title = f"MMS {probe} | {meta['label']} | {coord} | {date_str} | {time_str}"
         else:
             date_str = f"{start_dt.strftime('%d %b %Y %H:%M')} – {end_dt.strftime('%d %b %Y %H:%M')}"
-            time_range = ""
+            title = f"MMS {probe} | {meta['label']} | {coord} | {date_str}"
         
-        # Subsample
+        # --- Subsampling ---
         if len(df) > subsample_pts:
             step = len(df) // subsample_pts
             plot_df = df.iloc[::step]
         else:
             plot_df = df
         
-        # Determine plot type based on instrument key
-        if key in ['FGM', 'SCM', 'FSM']:
-            # Magnetic field instruments
-            if time_range:
-                title = f"MMS {probe} | B | {coord} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | B | {coord} | {date_str}"
-            fig = plot_magnetic_field(plot_df, title=title, height=550)
-            
-        elif key in ['DES']:
-            if time_range:
-                title = f"MMS {probe} | Electron Velocity | {coord} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | V<sub>e</sub> | {coord} | {date_str}"
-            fig = plot_velocity_field(plot_df, title=title, species='electron', height=450)
-            
-        elif key in ['DIS']:
-            if time_range:
-                title = f"MMS {probe} | Ion Velocity | {coord} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | V<sub>i</sub> | {coord} | {date_str}"
-            fig = plot_velocity_field(plot_df, title=title, species='ion', height=450)
-            
-        elif key in ['EDP', 'EDI']:
-            # Electric field instruments - use generic vector plot
-            if time_range:
-                title = f"MMS {probe} | {key} E-field | {coord} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | {key} E-field | {coord} | {date_str}"
-            fig = _plot_generic_vector(plot_df, title=title, y_label="E (mV/m)", colors=EFIELD_COLORS)
-            
-        elif key in ['MEC', 'STATE']:
-            # Position/ephemeris
-            if time_range:
-                title = f"MMS {probe} | Position | {coord} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | Position | {coord} | {date_str}"
-            fig = _plot_generic_vector(plot_df, title=title, y_label="Position (km)", colors=POSITION_COLORS)
-            
-        else:
-            # Generic scalar/other data (HPCA, FEEPS, EIS, ASPOC, TQF)
-            if time_range:
-                title = f"MMS {probe} | {key} | {date_str} | {time_range}"
-            else:
-                title = f"MMS {probe} | {key} | {date_str}"
-            fig = _plot_generic_scalar(plot_df, title=title, key=key)
+        # --- Plotting ---
+        # Call the new unified plotter with metadata
+        fig = plot_time_series(plot_df, meta, title=title)
         
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
+        # --- Caption ---
         if len(df) > 1:
             try:
-                sampling_hz = 1 / (df.index[1] - df.index[0]).total_seconds()
-                st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {sampling_hz:.1f} Hz")
+                dt = (df.index[1] - df.index[0]).total_seconds()
+                fs = 1 / dt if dt > 0 else 0
+                st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {fs:.1f} Hz")
             except:
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points")
 
@@ -1362,11 +1434,15 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
     clean_data = data[~np.isnan(data)]
     time_data = df.index.values.astype('datetime64[ns]')
     
+
     # Quick time series preview
     step = max(1, len(time_data) // min(subsample_pts, 8000))
-    fig = create_time_series_plot(time_data[::step], data[::step], 
-                                  title=f"{selected_key}: {selected_col}", 
-                                  ylabel=f"{selected_col}", height=350)
+    
+    # Unified Plotter
+    plot_df = df[[selected_col]].iloc[::step]
+    meta = {'label': selected_col, 'unit': '', 'type': 'scalar'}
+    fig = plot_time_series(plot_df, meta, title=f"{selected_key}: {selected_col}")
+
     st.plotly_chart(fig, use_container_width=True)
     
     c1, c2 = st.columns(2)

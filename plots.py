@@ -375,54 +375,123 @@ def plot_velocity_field(
     return fig
 
 
-def create_time_series_plot(
 
-    time_data, 
-    data, 
-    title="Time Series", 
-    ylabel="Value",
-    component_labels: Optional[List[str]] = None,
-    height=400
-):
-
+def plot_time_series(df, meta, title=None):
     """
-    Create responsive time series plot with optional LaTeX component labels.
+    Unified "Publication-Standard" Time Series Plot.
     
     Args:
-        time_data: Time array
-        data: Data array (1D or 2D)
-        title: Plot title (can include LaTeX)
-        ylabel: Y-axis label (can include LaTeX)
-        component_labels: LaTeX labels for each component
-        height: Plot height in pixels
+        df: DataFrame (index=Epoch)
+        meta: Dict with keys 'label', 'unit', 'type'
+              example: {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
     """
     fig = go.Figure()
-    
-    if len(data.shape) == 1:
-        fig.add_trace(go.Scattergl(
-            x=time_data, y=data, mode='lines', 
-            name=ylabel, line=dict(color=COLORS[0], width=1.5)
-        ))
-    else:
-        labels = component_labels or [f'Component {i}' for i in range(data.shape[1])]
-        for i in range(min(data.shape[1], 4)):
-            label = labels[i] if i < len(labels) else f'C{i}'
+
+    # --- 1. Trace Generation ---
+    if meta['type'] == 'vector':
+        # Mapping rules for generic vector components
+        # We look for x, y, z, and total magnitude columns
+        cols = df.columns
+        x_col = next((c for c in cols if c.lower().endswith('x') or c.lower() == 'x'), None)
+        y_col = next((c for c in cols if c.lower().endswith('y') or c.lower() == 'y'), None)
+        z_col = next((c for c in cols if c.lower().endswith('z') or c.lower() == 'z'), None)
+        tot_col = next((c for c in cols if c.lower() in ['tot', 'bt', 'vt', 'et', 'mag', 't']), None)
+
+        if x_col:
             fig.add_trace(go.Scattergl(
-                x=time_data, y=data[:, i], mode='lines',
-                name=label, line=dict(color=COLORS[i], width=1.5)
+                x=df.index, y=df[x_col], mode='lines',
+                name=f"{meta['label']}_x",
+                line=dict(color="#1f77b4", width=1.5)
             ))
+        if y_col:
+            fig.add_trace(go.Scattergl(
+                x=df.index, y=df[y_col], mode='lines',
+                name=f"{meta['label']}_y",
+                line=dict(color="#2ca02c", width=1.5)
+            ))
+        if z_col:
+            fig.add_trace(go.Scattergl(
+                x=df.index, y=df[z_col], mode='lines',
+                name=f"{meta['label']}_z",
+                line=dict(color="#d62728", width=1.5)
+            ))
+        if tot_col:
+            fig.add_trace(go.Scattergl(
+                x=df.index, y=df[tot_col], mode='lines',
+                name=f"|{meta['label']}|",
+                line=dict(color="#000000", width=2, dash='solid')
+            ))
+
+    elif meta['type'] == 'scalar':
+        # Just take the first column
+        col = df.columns[0]
+        fig.add_trace(go.Scattergl(
+            x=df.index, y=df[col], mode='lines',
+            name=meta['label'],
+            line=dict(color="#9467bd", width=1.5)
+        ))
+
+    # --- 2. Styling & Layout (Strict "FGM Style") ---
+    
+    # Dynamic Y-Axis Label
+    y_title = f"{meta['label']} {meta['unit']}"
     
     fig.update_layout(
-        **RESPONSIVE_LAYOUT,
-        title=dict(text=title, font=dict(size=16), x=0.5),
-        xaxis_title="Time (UTC)",
-        yaxis_title=ylabel,
-        height=height
+        # Background
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        
+        # Font settings
+        font=dict(family='Space Grotesk, sans-serif'),
+        
+        # Title
+        title=dict(
+            text=title or f"MMS {meta['label']} Time Series",
+            font=dict(size=22, color='black'),
+            x=0.05,
+            y=0.95
+        ),
+        
+        # Axes Labels
+        xaxis=dict(
+            title_text="Epoch [UTC]",
+            title_font=dict(size=18, color='black'),
+            tickfont=dict(size=14, color='black'),
+            showgrid=True,
+            gridcolor='#E5E5E5',
+            # griddash='dash',  # Note: 'griddash' supported in newer Plotly versions
+            zeroline=False
+        ),
+        yaxis=dict(
+            title_text=y_title,
+            title_font=dict(size=18, color='black'),
+            tickfont=dict(size=14, color='black'),
+            showgrid=True,
+            gridcolor='#E5E5E5',
+            # griddash='dash',
+            zeroline=False
+        ),
+        
+        # Legend
+        legend=dict(
+            orientation='h',
+            yanchor='bottom',
+            y=1.02,
+            xanchor='right',
+            x=1,
+            font=dict(size=14, color='black')
+        ),
+        
+        # Margins
+        margin=dict(l=60, r=20, t=80, b=60),
+        hovermode='x unified',
     )
-    
-    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04), tickfont=dict(size=10))
-    fig.update_yaxes(tickfont=dict(size=10))
-    
+
+    # For strict compliance with "griddash='dash'", we use update_xaxes/yaxes
+    # Note: griddash is a valid property in recent plotly.js, accessible via python kwarg
+    fig.update_xaxes(griddash='dash')
+    fig.update_yaxes(griddash='dash')
+
     return fig
 
 
