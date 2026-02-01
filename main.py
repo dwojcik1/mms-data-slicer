@@ -883,6 +883,30 @@ def render_data_loader():
     st.markdown("### Data Configuration ◈")
     st.caption("Select your data source and configure the download parameters.")
     
+    # "What this app does" info box
+    st.markdown(
+        """
+        <div style="
+            max-width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin: 20px 0;
+        ">
+            <div style="font-size: 1rem; font-weight: 600; color: rgba(248, 250, 252, 0.9); margin-bottom: 12px;">
+                What this app does
+            </div>
+            <ul style="list-style: none; padding: 0; margin: 0; color: rgba(248, 250, 252, 0.6); font-size: 0.9rem; line-height: 1.7;">
+                <li style="margin-bottom: 8px;">▸ Load magnetic field and plasma time series from NASA's <a href="https://mms.gsfc.nasa.gov" target="_blank" style="color: #a5b4fc;">Magnetospheric Multiscale (MMS)</a> mission via CDAWeb</li>
+                <li style="margin-bottom: 8px;">▸ Compute <strong style="color: rgba(200, 210, 255, 0.85);">Welch Power Spectral Densities</strong> with configurable windowing, segment overlap, and detrending</li>
+                <li>▸ Fit and compare <strong style="color: rgba(200, 210, 255, 0.85);">inertial- and kinetic-range spectral indices</strong> against reference slopes (Kolmogorov −5/3, kinetic −2.8)</li>
+            </ul>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
     st.markdown("")  # Spacer
     
     # Data source selection
