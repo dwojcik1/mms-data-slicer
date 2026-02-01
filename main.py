@@ -962,7 +962,8 @@ def render_nasa_download_form():
     instrument_name = st.selectbox(
         "Select MMS Instrument",
         list(MMS_INSTRUMENTS.keys()),
-        index=0
+        index=0,
+        help="FGM: Magnetic field (nT) | FPI: Plasma moments (density, velocity) | SCM: AC magnetic fluctuations | EDP: Electric field"
     )
     
     instrument_info = MMS_INSTRUMENTS[instrument_name]
@@ -1025,14 +1026,26 @@ def render_nasa_download_form():
     
     # Probe (always shown)
     with cols[col_idx]:
-        probe = st.selectbox("Probe", ['1', '2', '3', '4'], index=0)
+        probe = st.selectbox(
+            "Probe", 
+            ['1', '2', '3', '4'], 
+            index=0,
+            help="MMS constellation spacecraft (1-4). Probes maintain ~10-160 km tetrahedron formation."
+        )
     col_idx += 1
     
     # Data Rate (if available)
     data_rate = None
     if rates:
         with cols[col_idx]:
-            data_rate_display = st.selectbox("Data Rate", rates, index=0)
+            # Build rate help text based on instrument
+            rate_help = {
+                'fgm': "SRVY: 16 Hz survey | BRST: 128 Hz burst | FAST: 8 Hz | SLOW: 0.125 Hz",
+                'fpi': "FAST: 4.5s (ions), 30ms (electrons) | BRST: 150ms (ions), 30ms (electrons)",
+                'scm': "SRVY: 32 Hz | BRST: 8192 Hz (SCB mode)",
+                'edp': "FAST: 32 Hz | BRST: 8192 Hz | SLOW: 8 Hz",
+            }.get(instrument_key, "Sampling rate mode")
+            data_rate_display = st.selectbox("Data Rate", rates, index=0, help=rate_help)
             data_rate = data_rate_display.lower()
         col_idx += 1
     
@@ -1040,7 +1053,8 @@ def render_nasa_download_form():
     level = None
     if levels:
         with cols[col_idx]:
-            level_display = st.selectbox("Level", levels, index=0)
+            level_help = "L2: Science-quality calibrated data | L1B: Calibrated, uncorrected | QL: Quick-look (near real-time)"
+            level_display = st.selectbox("Level", levels, index=0, help=level_help)
             level = level_display.lower()
         col_idx += 1
     
@@ -1048,7 +1062,14 @@ def render_nasa_download_form():
     datatype = None
     if types:
         with cols[col_idx]:
-            datatype_display = st.selectbox("Datatype", types, index=0)
+            # Build datatype help based on instrument
+            type_help = {
+                'fpi': "DIS-MOMS: Ion moments (density, velocity) | DES-MOMS: Electron moments | DIST: Distribution functions",
+                'scm': "SCSRVY: Survey AC magnetic field | SCB: Burst waveform | SCHB: High-frequency burst",
+                'edp': "DCE: DC E-field (mV/m) | DCV: Spacecraft potential | ACE: AC E-field | HMFE: High-freq E-field",
+                'eis': "EXTOF: Energetic ions (20-500 keV) | PHXTOF: Protons (10-600 keV) | ELECTRONENERGY: Electrons",
+            }.get(instrument_key, "Data product type")
+            datatype_display = st.selectbox("Datatype", types, index=0, help=type_help)
             datatype = datatype_display.lower()
         col_idx += 1
     
@@ -1056,7 +1077,8 @@ def render_nasa_download_form():
     coord = None
     if has_coord and coords:
         with cols[col_idx]:
-            coord_display = st.selectbox("Coordinates", coords, index=0)
+            coord_help = "GSE: Geocentric Solar Ecliptic (X→Sun) | GSM: Geocentric Solar Magnetospheric (X→Sun, Z→dipole)"
+            coord_display = st.selectbox("Coordinates", coords, index=0, help=coord_help)
             coord = coord_display.lower()
     
     st.markdown("")  # Spacer
