@@ -529,10 +529,15 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                     st.markdown("##### Custom Spectral Fit")
                     st.caption("Select frequency range to fit your own spectral index (red line)")
                     
-                    # Calculate safe default values (clamped to valid range)
-                    default_f_min = min(max(f_min_data * 10, f_min_data), f_max_data * 0.9)
-                    default_f_max = max(min(f_max_data / 10, f_max_data), f_min_data * 1.1)
-                    # Ensure defaults don't cross
+                    # Calculate safe default values - use 25% and 75% of log range
+                    log_f_min = np.log10(f_min_data)
+                    log_f_max = np.log10(f_max_data)
+                    log_range = log_f_max - log_f_min
+                    default_f_min = float(10 ** (log_f_min + log_range * 0.25))
+                    default_f_max = float(10 ** (log_f_min + log_range * 0.75))
+                    # Final clamp to ensure within bounds
+                    default_f_min = max(f_min_data, min(default_f_min, f_max_data))
+                    default_f_max = max(f_min_data, min(default_f_max, f_max_data))
                     if default_f_min >= default_f_max:
                         default_f_min = f_min_data
                         default_f_max = f_max_data
@@ -1555,9 +1560,15 @@ def render_psd_analysis(datasets: dict, info: dict):
             st.markdown("##### Custom Spectral Fit")
             st.caption("Select frequency range to fit your own spectral index (red line)")
             
-            # Calculate safe default values (clamped to valid range)
-            default_f_min = min(max(f_min_data * 10, f_min_data), f_max_data * 0.9)
-            default_f_max = max(min(f_max_data / 10, f_max_data), f_min_data * 1.1)
+            # Calculate safe default values - use 25% and 75% of log range
+            log_f_min = np.log10(f_min_data)
+            log_f_max = np.log10(f_max_data)
+            log_range = log_f_max - log_f_min
+            default_f_min = float(10 ** (log_f_min + log_range * 0.25))
+            default_f_max = float(10 ** (log_f_min + log_range * 0.75))
+            # Final clamp to ensure within bounds
+            default_f_min = max(f_min_data, min(default_f_min, f_max_data))
+            default_f_max = max(f_min_data, min(default_f_max, f_max_data))
             if default_f_min >= default_f_max:
                 default_f_min = f_min_data
                 default_f_max = f_max_data
