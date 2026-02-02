@@ -431,7 +431,10 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
         
         # Iterate through each dataset
         for key, df in datasets.items():
-            if df is None or len(df) == 0:
+            # Skip CDFLoader objects
+            if hasattr(df, 'get_time_data') and not hasattr(df, 'columns'):
+                continue
+            if df is None or (hasattr(df, 'empty') and df.empty):
                 continue
             
             # Generate dynamic title
