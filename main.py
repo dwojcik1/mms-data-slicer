@@ -520,9 +520,56 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
             st.markdown(f"#### PSD: {selected_key} {selected_col}")
             try:
                 psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
-                fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_key} {selected_col}",
-                                      psd_units=r"nT²/Hz" if 'B' in selected_col else "km²/s²/Hz")
+                
+                # Frequency range for custom fit
+                f_pos = psd.frequencies[psd.frequencies > 0]
+                if len(f_pos) > 0:
+                    f_min_data, f_max_data = float(f_pos.min()), float(f_pos.max())
+                    
+                    st.markdown("##### Custom Spectral Fit")
+                    st.caption("Select frequency range to fit your own spectral index (red line)")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        fit_f_min = st.slider(
+                            "f_min [Hz]", 
+                            min_value=f_min_data, 
+                            max_value=f_max_data,
+                            value=f_min_data * 10,  # Default: start from second decade
+                            format="%.2e",
+                            key="psd_fit_fmin_1"
+                        )
+                    with col2:
+                        fit_f_max = st.slider(
+                            "f_max [Hz]", 
+                            min_value=f_min_data, 
+                            max_value=f_max_data,
+                            value=f_max_data / 10,  # Default: end at second-to-last decade
+                            format="%.2e",
+                            key="psd_fit_fmax_1"
+                        )
+                    
+                    # Ensure f_min < f_max
+                    if fit_f_min >= fit_f_max:
+                        st.warning("f_min must be less than f_max")
+                        user_fit_range = None
+                    else:
+                        user_fit_range = (fit_f_min, fit_f_max)
+                else:
+                    user_fit_range = None
+                
+                fig, fitted_slope = create_psd_plot(
+                    psd.frequencies, psd.power, 
+                    title=f"PSD: {selected_key} {selected_col}",
+                    psd_units=r"nT²/Hz" if 'B' in selected_col else "km²/s²/Hz",
+                    user_fit_range=user_fit_range
+                )
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Display fitted slope
+                if fitted_slope is not None:
+                    st.success(f"**Fitted Spectral Index:** α = {fitted_slope:.3f}")
+                
                 st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
             except Exception as e:
                 st.error(str(e))
@@ -652,7 +699,7 @@ def render_dataframe_analysis(df, time_data):
             st.markdown(f"#### PSD: {selected_col}")
             try:
                 psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
-                fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
+                fig, _ = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
                                       psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$")
                 st.plotly_chart(fig, use_container_width=True)
                 st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
@@ -708,7 +755,7 @@ def render_dataframe_analysis(df, time_data):
                 st.markdown("##### PSD")
                 try:
                     psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
-                    fig = create_psd_plot(psd.frequencies, psd.power, 
+                    fig, _ = create_psd_plot(psd.frequencies, psd.power, 
                                           psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=350)
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
@@ -1491,8 +1538,54 @@ def render_psd_analysis(datasets: dict, info: dict):
     try:
         psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
         units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
-        fig = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_key} {selected_col}", psd_units=units)
+        
+        # Frequency range for custom fit
+        f_pos = psd.frequencies[psd.frequencies > 0]
+        if len(f_pos) > 0:
+            f_min_data, f_max_data = float(f_pos.min()), float(f_pos.max())
+            
+            st.markdown("##### Custom Spectral Fit")
+            st.caption("Select frequency range to fit your own spectral index (red line)")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fit_f_min = st.slider(
+                    "f_min [Hz]", 
+                    min_value=f_min_data, 
+                    max_value=f_max_data,
+                    value=f_min_data * 10,
+                    format="%.2e",
+                    key="psd_fit_fmin_main"
+                )
+            with col2:
+                fit_f_max = st.slider(
+                    "f_max [Hz]", 
+                    min_value=f_min_data, 
+                    max_value=f_max_data,
+                    value=f_max_data / 10,
+                    format="%.2e",
+                    key="psd_fit_fmax_main"
+                )
+            
+            if fit_f_min >= fit_f_max:
+                st.warning("f_min must be less than f_max")
+                user_fit_range = None
+            else:
+                user_fit_range = (fit_f_min, fit_f_max)
+        else:
+            user_fit_range = None
+        
+        fig, fitted_slope = create_psd_plot(
+            psd.frequencies, psd.power, 
+            title=f"PSD: {selected_key} {selected_col}", 
+            psd_units=units,
+            user_fit_range=user_fit_range
+        )
         st.plotly_chart(fig, use_container_width=True)
+        
+        if fitted_slope is not None:
+            st.success(f"**Fitted Spectral Index:** α = {fitted_slope:.3f}")
+        
         st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
     except Exception as e:
         st.error(str(e))
@@ -1579,7 +1672,7 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
         try:
             psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
             units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
-            fig = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=350)
+            fig, _ = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=350)
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(str(e))

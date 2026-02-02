@@ -556,7 +556,8 @@ def create_psd_plot(
     power, 
     title="Power Spectral Density",
     psd_units: str = r"PSD",
-    height=600
+    height=600,
+    user_fit_range: tuple = None
 ):
     """
     Create log-log PSD plot with publication-quality styling.
@@ -567,11 +568,14 @@ def create_psd_plot(
         title: Plot title (can include LaTeX)
         psd_units: Y-axis units (LaTeX formatted, e.g., r'$\\mathrm{nT}^2/\\mathrm{Hz}$')
         height: Plot height in pixels
+        user_fit_range: Optional tuple (f_min, f_max) for user-selected fit range.
+                        If provided, computes and displays a custom spectral fit in red.
     
     Returns:
-        Plotly Figure object
+        Plotly Figure object, and fitted_slope (float or None)
     """
     fig = go.Figure()
+    fitted_slope = None
     
     fig.add_trace(go.Scattergl(
         x=frequencies, y=power, mode='lines', name='PSD',
@@ -604,6 +608,43 @@ def create_psd_plot(
                 name='f⁻⁸ᐟ³ (Kinetic)',
                 line=dict(dash='dot', width=2, color=COLORS[2])
             ))
+    
+    # User-defined fit (red line)
+    if user_fit_range is not None and len(frequencies) > 2:
+        fit_f_min, fit_f_max = user_fit_range
+        
+        # Get data in the fit range
+        mask = (frequencies >= fit_f_min) & (frequencies <= fit_f_max) & (frequencies > 0) & (power > 0)
+        f_fit = frequencies[mask]
+        p_fit = power[mask]
+        
+        if len(f_fit) > 2:
+            # Linear fit in log-log space: log(P) = slope * log(f) + intercept
+            log_f = np.log10(f_fit)
+            log_p = np.log10(p_fit)
+            
+            # Linear regression
+            slope, intercept = np.polyfit(log_f, log_p, 1)
+            fitted_slope = slope
+            
+            # Generate fit line extending slightly beyond fit range
+            f_line = np.array([fit_f_min * 0.8, fit_f_max * 1.2])
+            p_line = 10 ** (intercept + slope * np.log10(f_line))
+            
+            # Add fitted line (red, solid)
+            fig.add_trace(go.Scatter(
+                x=f_line, y=p_line, mode='lines',
+                name=f'Fit: f^{slope:.2f}',
+                line=dict(dash='solid', width=3, color='#d62728')  # Red
+            ))
+            
+            # Add shaded fit region
+            fig.add_vrect(
+                x0=fit_f_min, x1=fit_f_max,
+                fillcolor="rgba(214, 39, 40, 0.1)",
+                layer="below",
+                line_width=0,
+            )
     
     # Format Y-axis label with physics units
     ylabel = f"PSD ({psd_units})" if psd_units else "Power Spectral Density"
@@ -672,7 +713,7 @@ def create_psd_plot(
         mirror=True
     )
     
-    return fig
+    return fig, fitted_slope
 
 
 def create_pdf_plot(
