@@ -1675,6 +1675,21 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
             plot_df = df
         
         # --- Plotting ---
+        # Help tooltip for plot interactivity
+        with st.expander("ℹ️ Plot Interactivity", expanded=False):
+            st.markdown("""
+**Legend:** Click on variable names to show/hide traces. Double-click to isolate one.
+
+**Toolbar (top-right):**
+- 📷 Download plot as PNG
+- 🔍 Zoom (drag to select area)
+- ✋ Pan (drag to move)
+- ⬜ Box/Lasso select
+- ↩️ Reset axes (double-click plot)
+- 📐 Toggle spike lines
+- 🔲 Full-screen mode
+            """)
+        
         # Call the new unified plotter with metadata
         fig = plot_time_series(plot_df, meta, title=title)
         
@@ -1688,6 +1703,9 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {fs:.1f} Hz")
             except:
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points")
+        
+        # Subsample hint
+        st.info("💡 **Tip:** Adjust **Subsample Points** in the sidebar (left panel) to change plot resolution.", icon="⚙️")
 
 
 def _plot_generic_vector(df, title: str, y_label: str, colors: dict):
