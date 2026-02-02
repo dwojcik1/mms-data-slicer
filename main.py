@@ -199,6 +199,19 @@ def view_mission_modal():
     
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # Spacecraft Diagram
+    st.markdown("""
+    <div style="text-align: center; margin: 16px 0;">
+        <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 8px;">
+            🛰️ MMS Spacecraft Instrument Layout
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.image("assets/mms_spacecraft.jpg", use_container_width=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     # Close button
     if st.button("Close", use_container_width=True, type="primary"):
         st.rerun()
