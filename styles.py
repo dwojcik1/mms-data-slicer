@@ -15,23 +15,24 @@ def apply_custom_css():
     st.markdown("""
     <style>
     /* ==========================================================================
-       FONT IMPORT - SPACE GROTESK
+       FONT IMPORT - SPACE GROTESK + MATERIAL ICONS
        ========================================================================== */
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
     
     /* Global font application - exclude icon fonts */
     html, body, [class*="st-"], .stApp, .stApp * {
         font-family: 'Space Grotesk', sans-serif !important;
     }
     
-    /* Preserve Material Icons for Streamlit UI icons */
-    .material-icons, 
-    [class*="icon"], 
-    [data-testid*="icon"],
-    .stSidebar button span,
-    [aria-label*="Collapse"],
-    [aria-label*="Expand"] {
-        font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
+    /* Fix Material Icons rendering for Streamlit UI elements */
+    [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="collapsedControl"] span,
+    button[kind="header"] span,
+    .material-symbols-rounded,
+    [class*="material"] {
+        font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
 
     
