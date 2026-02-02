@@ -1676,7 +1676,7 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         
         # --- Plotting ---
         # Help tooltip for plot interactivity
-        with st.expander("ℹ️ Plot Interactivity", expanded=False):
+        with st.expander("(?) Plot Interactivity Guide", expanded=False):
             st.markdown("""
 **Legend:** Click on variable names to show/hide traces. Double-click to isolate one.
 
