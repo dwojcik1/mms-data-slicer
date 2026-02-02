@@ -1911,86 +1911,78 @@ def render_psd_analysis(datasets: dict, info: dict):
         submitted = st.form_submit_button("Update Plot", use_container_width=True, type="primary")
     
     # =========================================================================
-    # PLOTTING
+    # PLOTTING (always render - auto-load on page open)
     # =========================================================================
-    if 'psd_plot_generated' not in st.session_state:
-        st.session_state.psd_plot_generated = False
+    fit1_range = None
+    fit2_range = None
     
-    if submitted or not st.session_state.psd_plot_generated:
-        st.session_state.psd_plot_generated = True
-        
-        fit1_range = None
-        fit2_range = None
-        
-        # Compute Fit 1 range
+    # Compute Fit 1 range
+    if fit_mode == "Manual Range":
+        if fit1_fmin >= fit1_fmax:
+            st.error("⚠️ f₁ min must be < f₁ max")
+        else:
+            fit1_range = (fit1_fmin, fit1_fmax)
+    else:
+        try:
+            f1_min, f1_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha1)
+            fit1_range = (f1_min, f1_max)
+        except Exception as e:
+            st.error(f"Fit 1 range error: {e}")
+    
+    # Compute Fit 2 range (if enabled)
+    if enable_dual_fit:
         if fit_mode == "Manual Range":
-            if fit1_fmin >= fit1_fmax:
-                st.error("⚠️ f₁ min must be < f₁ max")
+            if fit2_fmin >= fit2_fmax:
+                st.error("⚠️ f₂ min must be < f₂ max")
             else:
-                fit1_range = (fit1_fmin, fit1_fmax)
+                fit2_range = (fit2_fmin, fit2_fmax)
         else:
             try:
-                f1_min, f1_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha1)
-                fit1_range = (f1_min, f1_max)
+                f2_min, f2_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha2)
+                fit2_range = (f2_min, f2_max)
             except Exception as e:
-                st.error(f"Fit 1 range error: {e}")
+                st.error(f"Fit 2 range error: {e}")
+    
+    # Plot
+    st.subheader(f"{selected_key} — {selected_col}")
+    
+    try:
+        fig, alpha1, alpha2 = create_psd_plot(
+            psd.frequencies, psd.power, title="",
+            psd_units=units, fit1_range=fit1_range, fit2_range=fit2_range
+        )
+        st.plotly_chart(fig, use_container_width=False, config=PLOTLY_CONFIG)
         
-        # Compute Fit 2 range (if enabled)
-        if enable_dual_fit:
-            if fit_mode == "Manual Range":
-                if fit2_fmin >= fit2_fmax:
-                    st.error("⚠️ f₂ min must be < f₂ max")
-                else:
-                    fit2_range = (fit2_fmin, fit2_fmax)
-            else:
-                try:
-                    f2_min, f2_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha2)
-                    fit2_range = (f2_min, f2_max)
-                except Exception as e:
-                    st.error(f"Fit 2 range error: {e}")
+        # =================================================================
+        # RESULTS - Clean, readable metrics
+        # =================================================================
+        if alpha1 is not None or alpha2 is not None:
+            st.markdown("#### Spectral Indices")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if alpha1 is not None and fit1_range:
+                    st.metric(
+                        label="α₁ (Inertial)",
+                        value=f"{alpha1:.3f}",
+                        delta=f"{fit1_range[0]:.3f} – {fit1_range[1]:.3f} Hz",
+                        delta_color="off"
+                    )
+            
+            with col2:
+                if alpha2 is not None and fit2_range:
+                    st.metric(
+                        label="α₂ (Kinetic)",
+                        value=f"{alpha2:.3f}",
+                        delta=f"{fit2_range[0]:.3f} – {fit2_range[1]:.3f} Hz",
+                        delta_color="off"
+                    )
         
-        # Plot
-        st.subheader(f"{selected_key} — {selected_col}")
+        st.caption(f"Fs: {psd.sampling_frequency:.1f} Hz | Segments: {psd.nperseg} | N: {len(clean_data):,}")
         
-        try:
-            fig, alpha1, alpha2 = create_psd_plot(
-                psd.frequencies, psd.power, title="",
-                psd_units=units, fit1_range=fit1_range, fit2_range=fit2_range
-            )
-            st.plotly_chart(fig, use_container_width=False, config=PLOTLY_CONFIG)
-            
-            # =================================================================
-            # COMPACT RESULTS (4-column layout)
-            # =================================================================
-            if alpha1 is not None or alpha2 is not None:
-                cols = st.columns(4)
-                
-                with cols[0]:
-                    if alpha1 is not None:
-                        st.markdown(f"**α₁** (Red)")
-                        st.markdown(f"### {alpha1:.3f}")
-                    
-                with cols[1]:
-                    if fit1_range:
-                        st.markdown("**f₁ range**")
-                        st.caption(f"{fit1_range[0]:.3f} – {fit1_range[1]:.3f} Hz")
-                
-                with cols[2]:
-                    if alpha2 is not None:
-                        st.markdown(f"**α₂** (Green)")
-                        st.markdown(f"### {alpha2:.3f}")
-                
-                with cols[3]:
-                    if fit2_range:
-                        st.markdown("**f₂ range**")
-                        st.caption(f"{fit2_range[0]:.3f} – {fit2_range[1]:.3f} Hz")
-            
-            st.caption(f"Fs: {psd.sampling_frequency:.1f} Hz | Segments: {psd.nperseg} | N: {len(clean_data):,}")
-            
-        except Exception as e:
-            st.error(f"Plotting error: {e}")
-    else:
-        st.info("Configure parameters and click **Update Plot**.")
+    except Exception as e:
+        st.error(f"Plotting error: {e}")
 
 
 def render_pdf_analysis(datasets: dict, info: dict):

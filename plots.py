@@ -580,12 +580,12 @@ def create_psd_plot(
     fit1_midpoint = None
     fit2_midpoint = None
     
-    # Main PSD trace - BLACK
-    fig.add_trace(go.Scattergl(
+    # Store PSD data - will be added LAST so fit lines render on top
+    psd_trace = go.Scattergl(
         x=frequencies, y=power, mode='lines', name='PSD',
-        line=dict(color='#000000', width=1.5),
+        line=dict(color='#000000', width=1.2),
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
-    ))
+    )
     
     # Reference slopes (optional)
     if show_reference_slopes and len(frequencies) > 2:
@@ -618,7 +618,7 @@ def create_psd_plot(
     # Helper function to compute fit and add to plot
     def add_fit_trace(fit_range, color, fit_name, fit_idx):
         if fit_range is None or len(frequencies) < 3:
-            return None, None
+            return None, None, None
             
         fit_f_min, fit_f_max = fit_range
         
@@ -628,26 +628,18 @@ def create_psd_plot(
         p_fit = power[mask]
         
         if len(f_fit) < 3:
-            return None, None
+            return None, None, None
             
         # Linear fit in log-log space
         log_f = np.log10(f_fit)
         log_p = np.log10(p_fit)
         slope, intercept = np.polyfit(log_f, log_p, 1)
         
-        # Generate fit line 
+        # Generate fit line
         f_line = np.array([fit_f_min * 0.9, fit_f_max * 1.1])
         p_line = 10 ** (intercept + slope * np.log10(f_line))
         
-        # Add fitted line
-        fig.add_trace(go.Scatter(
-            x=f_line, y=p_line, mode='lines',
-            name=f'Fit {fit_idx}',
-            line=dict(dash='solid', width=3, color=color),
-            showlegend=False
-        ))
-        
-        # Add shaded fit region
+        # Add shaded fit region (but NOT the trace - that's added later for z-order)
         rgba_color = f"rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.08)"
         fig.add_vrect(
             x0=fit_f_min, x1=fit_f_max,
@@ -660,13 +652,38 @@ def create_psd_plot(
         mid_f = np.sqrt(fit_f_min * fit_f_max)
         mid_p = 10 ** (intercept + slope * np.log10(mid_f))
         
-        return slope, (mid_f, mid_p)
+        return slope, (mid_f, mid_p), (f_line, p_line, color)
     
-    # Fit 1 (Red - Inertial Range)
-    alpha1, fit1_midpoint = add_fit_trace(fit1_range, '#d62728', 'Fit 1', 1)
+    # Compute fits first (but don't add traces yet)
+    fit1_result = add_fit_trace(fit1_range, '#d62728', 'Fit 1', 1)
+    fit2_result = add_fit_trace(fit2_range, '#2ca02c', 'Fit 2', 2)
     
-    # Fit 2 (Green - Kinetic Range)  
-    alpha2, fit2_midpoint = add_fit_trace(fit2_range, '#2ca02c', 'Fit 2', 2)
+    alpha1 = fit1_result[0] if fit1_result[0] else None
+    fit1_midpoint = fit1_result[1] if fit1_result[0] else None
+    alpha2 = fit2_result[0] if fit2_result[0] else None
+    fit2_midpoint = fit2_result[1] if fit2_result[0] else None
+    
+    # Add PSD trace FIRST
+    fig.add_trace(psd_trace)
+    
+    # Add fit lines AFTER PSD so they render ON TOP
+    if fit1_result[0] is not None:
+        f_line, p_line, color = fit1_result[2]
+        fig.add_trace(go.Scatter(
+            x=f_line, y=p_line, mode='lines',
+            name='Fit 1',
+            line=dict(dash='solid', width=3, color=color),
+            showlegend=False
+        ))
+    
+    if fit2_result[0] is not None:
+        f_line, p_line, color = fit2_result[2]
+        fig.add_trace(go.Scatter(
+            x=f_line, y=p_line, mode='lines',
+            name='Fit 2',
+            line=dict(dash='solid', width=3, color=color),
+            showlegend=False
+        ))
     
     # Add on-plot annotations for slopes
     if alpha1 is not None and fit1_midpoint is not None:
