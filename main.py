@@ -1557,12 +1557,21 @@ def _plot_generic_scalar(df, title: str, key: str):
 
 def render_psd_analysis(datasets: dict, info: dict):
     """Render Power Spectral Density analysis."""
+    import pandas as pd
     st.markdown("### Power Spectral Density")
     
-    dataset_keys = list(datasets.keys())
+    # Filter to only include DataFrames (not CDFLoader objects)
+    valid_datasets = {k: v for k, v in datasets.items() 
+                      if isinstance(v, pd.DataFrame) and not v.empty}
+    
+    if not valid_datasets:
+        st.warning("No valid data available for PSD analysis. Please load data first.")
+        return
+    
+    dataset_keys = list(valid_datasets.keys())
     selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
     
-    df = datasets[selected_key]
+    df = valid_datasets[selected_key]
     columns = list(df.columns)
     selected_col = st.selectbox("Variable", columns, key="psd_col")
     
