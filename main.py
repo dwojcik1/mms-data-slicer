@@ -28,8 +28,180 @@ from utils import (
 )
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 
+
 from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display
 
+
+# ============================================================================
+# Mission Intelligence Modal
+# ============================================================================
+
+@st.dialog("MMS Mission Intelligence", width="large")
+def view_mission_modal():
+    """Display MMS mission details in a styled modal dialog."""
+    
+    # Custom CSS for modal styling
+    st.markdown("""
+    <style>
+    .mission-modal * {
+        font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .mission-header {
+        text-align: center;
+        padding: 10px 0 20px 0;
+    }
+    .mission-header h3 {
+        color: #818cf8;
+        font-weight: 600;
+        margin-bottom: 12px;
+    }
+    .mission-header p {
+        color: rgba(255,255,255,0.8);
+        font-size: 1.05rem;
+        line-height: 1.6;
+    }
+    .metric-box {
+        background: linear-gradient(135deg, rgba(129,140,248,0.15) 0%, rgba(139,92,246,0.1) 100%);
+        border: 1px solid rgba(129,140,248,0.3);
+        border-radius: 12px;
+        padding: 20px 16px;
+        text-align: center;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #a5b4fc;
+        margin-bottom: 4px;
+    }
+    .metric-label {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.6);
+    }
+    .specs-box {
+        background: rgba(255,255,255,0.05);
+        border-left: 3px solid #818cf8;
+        border-radius: 0 8px 8px 0;
+        padding: 16px 20px;
+        margin: 16px 0;
+    }
+    .specs-box h4 {
+        color: #c7d2fe;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .specs-box ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .specs-box li {
+        color: rgba(255,255,255,0.8);
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .science-objectives {
+        background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(5,150,105,0.08) 100%);
+        border: 1px solid rgba(16,185,129,0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 16px;
+    }
+    .science-objectives h4 {
+        color: #6ee7b7;
+        font-size: 1rem;
+        margin-bottom: 12px;
+    }
+    .science-objectives li {
+        color: rgba(255,255,255,0.85);
+        padding: 8px 0;
+        padding-left: 20px;
+        position: relative;
+    }
+    .science-objectives li::before {
+        content: "→";
+        position: absolute;
+        left: 0;
+        color: #6ee7b7;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header Section
+    st.markdown("""
+    <div class="mission-modal">
+        <div class="mission-header">
+            <h3>🌌 Understanding Magnetic Reconnection</h3>
+            <p>
+                MMS uses Earth's magnetosphere as a natural laboratory to study the 
+                microphysics of magnetic reconnection—a fundamental explosive process 
+                occurring throughout the universe.
+            </p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Key Metrics - Bento Row
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="metric-box">
+            <div class="metric-value">4</div>
+            <div class="metric-label">Spacecraft<br>Tetrahedral Formation</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="metric-box">
+            <div class="metric-value">3 RPM</div>
+            <div class="metric-label">Rotation Rate<br>Spin-Stabilized</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div class="metric-box">
+            <div class="metric-value">25</div>
+            <div class="metric-label">Sensors<br>11 Instruments per S/C</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Spacecraft Specs
+    st.markdown("""
+    <div class="specs-box">
+        <h4>🛰️ Spacecraft Specifications</h4>
+        <ul>
+            <li><strong>Dimensions:</strong> Octagonal shape, ~11 ft wide × 4 ft high</li>
+            <li><strong>Orbit:</strong> Highly elliptical Earth orbit to scan both day-side and night-side reconnection regions</li>
+            <li><strong>Formation:</strong> Four identical spacecraft flying in precise tetrahedral formation</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Science Objectives
+    st.markdown("""
+    <div class="science-objectives">
+        <h4>🔬 Core Science Questions</h4>
+        <ul>
+            <li>What determines when reconnection starts and stops?</li>
+            <li>How does reconnection accelerate particles to high energies?</li>
+            <li>What is the structure of the electron diffusion region?</li>
+            <li>How does energy get converted from magnetic fields to particles?</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Close button
+    if st.button("Close", use_container_width=True, type="primary"):
+        st.rerun()
 
 
 # ============================================================================
@@ -1238,6 +1410,12 @@ def render_sidebar():
     
     with st.sidebar:
         st.markdown("### Global Controls ◎")
+        
+        # Mission Info Button - opens modal
+        if st.button("🚀 Mission Info", use_container_width=True, help="Learn about the MMS mission"):
+            view_mission_modal()
+        
+        st.markdown("")  # Spacing
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
