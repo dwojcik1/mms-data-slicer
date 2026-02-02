@@ -529,13 +529,21 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                     st.markdown("##### Custom Spectral Fit")
                     st.caption("Select frequency range to fit your own spectral index (red line)")
                     
+                    # Calculate safe default values (clamped to valid range)
+                    default_f_min = min(max(f_min_data * 10, f_min_data), f_max_data * 0.9)
+                    default_f_max = max(min(f_max_data / 10, f_max_data), f_min_data * 1.1)
+                    # Ensure defaults don't cross
+                    if default_f_min >= default_f_max:
+                        default_f_min = f_min_data
+                        default_f_max = f_max_data
+                    
                     col1, col2 = st.columns(2)
                     with col1:
                         fit_f_min = st.slider(
                             "f_min [Hz]", 
                             min_value=f_min_data, 
                             max_value=f_max_data,
-                            value=f_min_data * 10,  # Default: start from second decade
+                            value=default_f_min,
                             format="%.2e",
                             key="psd_fit_fmin_1"
                         )
@@ -544,7 +552,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                             "f_max [Hz]", 
                             min_value=f_min_data, 
                             max_value=f_max_data,
-                            value=f_max_data / 10,  # Default: end at second-to-last decade
+                            value=default_f_max,
                             format="%.2e",
                             key="psd_fit_fmax_1"
                         )
@@ -1547,13 +1555,20 @@ def render_psd_analysis(datasets: dict, info: dict):
             st.markdown("##### Custom Spectral Fit")
             st.caption("Select frequency range to fit your own spectral index (red line)")
             
+            # Calculate safe default values (clamped to valid range)
+            default_f_min = min(max(f_min_data * 10, f_min_data), f_max_data * 0.9)
+            default_f_max = max(min(f_max_data / 10, f_max_data), f_min_data * 1.1)
+            if default_f_min >= default_f_max:
+                default_f_min = f_min_data
+                default_f_max = f_max_data
+            
             col1, col2 = st.columns(2)
             with col1:
                 fit_f_min = st.slider(
                     "f_min [Hz]", 
                     min_value=f_min_data, 
                     max_value=f_max_data,
-                    value=f_min_data * 10,
+                    value=default_f_min,
                     format="%.2e",
                     key="psd_fit_fmin_main"
                 )
@@ -1562,7 +1577,7 @@ def render_psd_analysis(datasets: dict, info: dict):
                     "f_max [Hz]", 
                     min_value=f_min_data, 
                     max_value=f_max_data,
-                    value=f_max_data / 10,
+                    value=default_f_max,
                     format="%.2e",
                     key="psd_fit_fmax_main"
                 )
