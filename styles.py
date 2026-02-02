@@ -25,14 +25,26 @@ def apply_custom_css():
         font-family: 'Space Grotesk', sans-serif !important;
     }
     
-    /* Fix Material Icons rendering for Streamlit UI elements */
+    /* Fix broken Material Icons - hide text, show Unicode arrow instead */
     [data-testid="stSidebarCollapseButton"] span,
-    [data-testid="collapsedControl"] span,
-    button[kind="header"] span,
-    .material-symbols-rounded,
-    [class*="material"] {
-        font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
-        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    [data-testid="collapsedControl"] span {
+        font-size: 0 !important;  /* Hide the text */
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    [data-testid="stSidebarCollapseButton"] span::before,
+    [data-testid="collapsedControl"] span::before {
+        content: '»' !important;  /* Unicode double arrow */
+        font-size: 20px !important;
+        font-family: 'Space Grotesk', sans-serif !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+    }
+    
+    /* Flip arrow when sidebar is collapsed (button to expand) */
+    [data-testid="collapsedControl"] span::before {
+        content: '«' !important;
     }
 
     
