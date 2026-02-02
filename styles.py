@@ -25,29 +25,16 @@ def apply_custom_css():
         font-family: 'Space Grotesk', sans-serif !important;
     }
     
-    /* Hide broken Material Icons text completely */
-    [data-testid="stSidebarCollapseButton"],
+    /* Hide broken icon text for COLLAPSED sidebar control only */
     [data-testid="collapsedControl"] {
         overflow: hidden !important;
     }
     
-    [data-testid="stSidebarCollapseButton"] span,
     [data-testid="collapsedControl"] span {
         visibility: hidden !important;
         width: 24px !important;
         height: 24px !important;
         position: relative !important;
-    }
-    
-    [data-testid="stSidebarCollapseButton"] span::after {
-        content: '◂' !important;
-        visibility: visible !important;
-        position: absolute !important;
-        left: 50% !important;
-        top: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        font-size: 16px !important;
-        color: rgba(255, 255, 255, 0.7) !important;
     }
     
     [data-testid="collapsedControl"] span::after {
@@ -57,10 +44,9 @@ def apply_custom_css():
         left: 50% !important;
         top: 50% !important;
         transform: translate(-50%, -50%) !important;
-        font-size: 16px !important;
-        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 18px !important;
+        color: rgba(255, 255, 255, 0.8) !important;
     }
-
     
     /* ==========================================================================
        ROOT APPLICATION - ELIMINATE WHITE BACKGROUND
