@@ -1250,11 +1250,13 @@ def render_sidebar():
             total_len = 0
         
         # Single number input for subsample control
+        min_pts = 100  # Allow smaller datasets
+        safe_default = max(min_pts, min(default_pts, max_pts))
         subsample_pts = st.number_input(
             "Subsample Points",
-            min_value=1000,
+            min_value=min_pts,
             max_value=max_pts,
-            value=default_pts,
+            value=safe_default,
             step=1000,
             key="subsample_pts"
         )
