@@ -1241,9 +1241,16 @@ def render_sidebar():
         data_loaded = st.session_state.get('data_loaded', False)
         
         if data_loaded and data:
-            total_len = sum(len(df) for df in data.values() if hasattr(df, '__len__'))
-            max_pts = max(1000, total_len)
-            default_pts = min(30000, total_len)
+            # Safely calculate total length, handling various data types
+            total_len = 0
+            for df in data.values():
+                try:
+                    if hasattr(df, '__len__'):
+                        total_len += len(df)
+                except TypeError:
+                    pass  # Skip items that don't support len()
+            max_pts = max(1000, total_len) if total_len > 0 else 100000
+            default_pts = min(30000, total_len) if total_len > 0 else 30000
         else:
             max_pts = 100000
             default_pts = 30000
