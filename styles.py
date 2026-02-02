@@ -25,26 +25,40 @@ def apply_custom_css():
         font-family: 'Space Grotesk', sans-serif !important;
     }
     
-    /* Fix broken Material Icons - hide text, show Unicode arrow instead */
-    [data-testid="stSidebarCollapseButton"] span,
-    [data-testid="collapsedControl"] span {
-        font-size: 0 !important;  /* Hide the text */
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+    /* Hide broken Material Icons text completely */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="collapsedControl"] {
+        overflow: hidden !important;
     }
     
-    [data-testid="stSidebarCollapseButton"] span::before,
-    [data-testid="collapsedControl"] span::before {
-        content: '»' !important;  /* Unicode double arrow */
-        font-size: 20px !important;
-        font-family: 'Space Grotesk', sans-serif !important;
+    [data-testid="stSidebarCollapseButton"] span,
+    [data-testid="collapsedControl"] span {
+        visibility: hidden !important;
+        width: 24px !important;
+        height: 24px !important;
+        position: relative !important;
+    }
+    
+    [data-testid="stSidebarCollapseButton"] span::after {
+        content: '◂' !important;
+        visibility: visible !important;
+        position: absolute !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        font-size: 16px !important;
         color: rgba(255, 255, 255, 0.7) !important;
     }
     
-    /* Flip arrow when sidebar is collapsed (button to expand) */
-    [data-testid="collapsedControl"] span::before {
-        content: '«' !important;
+    [data-testid="collapsedControl"] span::after {
+        content: '▸' !important;
+        visibility: visible !important;
+        position: absolute !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        font-size: 16px !important;
+        color: rgba(255, 255, 255, 0.7) !important;
     }
 
     
