@@ -542,6 +542,13 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                         default_f_min = f_min_data
                         default_f_max = f_max_data
                     
+                    # Clear session state if cached value is out of new bounds
+                    for key in ["psd_fit_fmin_1", "psd_fit_fmax_1"]:
+                        if key in st.session_state:
+                            cached_val = st.session_state[key]
+                            if cached_val < f_min_data or cached_val > f_max_data:
+                                del st.session_state[key]
+                    
                     col1, col2 = st.columns(2)
                     with col1:
                         fit_f_min = st.slider(
@@ -1572,6 +1579,13 @@ def render_psd_analysis(datasets: dict, info: dict):
             if default_f_min >= default_f_max:
                 default_f_min = f_min_data
                 default_f_max = f_max_data
+            
+            # Clear session state if cached value is out of new bounds
+            for key in ["psd_fit_fmin_main", "psd_fit_fmax_main"]:
+                if key in st.session_state:
+                    cached_val = st.session_state[key]
+                    if cached_val < f_min_data or cached_val > f_max_data:
+                        del st.session_state[key]
             
             col1, col2 = st.columns(2)
             with col1:
