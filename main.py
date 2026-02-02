@@ -1652,12 +1652,21 @@ def render_psd_analysis(datasets: dict, info: dict):
 
 def render_pdf_analysis(datasets: dict, info: dict):
     """Render PDF & Moments analysis."""
+    import pandas as pd
     st.markdown("### PDF & Moments")
     
-    dataset_keys = list(datasets.keys())
+    # Filter to only include DataFrames (not CDFLoader objects)
+    valid_datasets = {k: v for k, v in datasets.items() 
+                      if isinstance(v, pd.DataFrame) and not v.empty}
+    
+    if not valid_datasets:
+        st.warning("No valid data available for PDF analysis. Please load data first.")
+        return
+    
+    dataset_keys = list(valid_datasets.keys())
     selected_key = st.selectbox("Dataset", dataset_keys, key="pdf_dataset")
     
-    df = datasets[selected_key]
+    df = valid_datasets[selected_key]
     columns = list(df.columns)
     selected_col = st.selectbox("Variable", columns, key="pdf_col")
     
@@ -1691,12 +1700,21 @@ def render_pdf_analysis(datasets: dict, info: dict):
 
 def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
     """Render Summary Statistics analysis."""
+    import pandas as pd
     st.markdown("### Summary Statistics")
     
-    dataset_keys = list(datasets.keys())
+    # Filter to only include DataFrames (not CDFLoader objects)
+    valid_datasets = {k: v for k, v in datasets.items() 
+                      if isinstance(v, pd.DataFrame) and not v.empty}
+    
+    if not valid_datasets:
+        st.warning("No valid data available for Summary analysis. Please load data first.")
+        return
+    
+    dataset_keys = list(valid_datasets.keys())
     selected_key = st.selectbox("Dataset", dataset_keys, key="sum_dataset")
     
-    df = datasets[selected_key]
+    df = valid_datasets[selected_key]
     columns = list(df.columns)
     selected_col = st.selectbox("Variable", columns, key="sum_col")
     
