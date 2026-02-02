@@ -1241,14 +1241,20 @@ def render_sidebar():
         data_loaded = st.session_state.get('data_loaded', False)
         
         if data_loaded and data:
-            # Safely calculate total length, handling various data types
+            # Safely calculate total length - only count pandas DataFrames
+            import pandas as pd
             total_len = 0
-            for df in data.values():
-                try:
-                    if hasattr(df, '__len__'):
-                        total_len += len(df)
-                except TypeError:
-                    pass  # Skip items that don't support len()
+            for item in data.values():
+                if isinstance(item, pd.DataFrame):
+                    total_len += len(item)
+                elif hasattr(item, 'get_time_data'):
+                    # CDFLoader - get length from time data
+                    try:
+                        time_data = item.get_time_data()
+                        if time_data is not None:
+                            total_len += len(time_data)
+                    except Exception:
+                        pass
             max_pts = max(1000, total_len) if total_len > 0 else 100000
             default_pts = min(30000, total_len) if total_len > 0 else 30000
         else:
