@@ -1676,18 +1676,18 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         
         # --- Plotting ---
         # Help tooltip for plot interactivity
-        with st.expander("(?) Plot Interactivity Guide", expanded=False):
+        with st.expander("ℹ️ Plot Interactivity", expanded=False):
             st.markdown("""
 **Legend:** Click on variable names to show/hide traces. Double-click to isolate one.
 
 **Toolbar (top-right):**
-- 📷 Download plot as PNG
-- 🔍 Zoom (drag to select area)
-- ✋ Pan (drag to move)
-- ⬜ Box/Lasso select
-- ↩️ Reset axes (double-click plot)
-- 📐 Toggle spike lines
-- 🔲 Full-screen mode
+- **Camera** — Download plot as PNG
+- **Zoom** — Drag to select area
+- **Pan** — Drag to move view
+- **Select** — Box/Lasso select points
+- **Home** — Reset axes (or double-click plot)
+- **Spikes** — Toggle crosshair lines
+- **Expand** — Full-screen mode
             """)
         
         # Call the new unified plotter with metadata
