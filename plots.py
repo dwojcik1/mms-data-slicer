@@ -597,11 +597,11 @@ def create_psd_plot(
             
             f_ref = np.array([f_mid / 10, f_mid * 10])
             
-            # Kolmogorov -5/3 slope
+            # Kolmogorov -5/3 slope (using Unicode superscripts for legend)
             p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
             fig.add_trace(go.Scatter(
                 x=f_ref, y=p_ref_53, mode='lines', 
-                name=r'$f^{-5/3}$',
+                name='f⁻⁵ᐟ³ (Kolmogorov)',
                 line=dict(dash='dash', width=2, color='#888888'),
                 visible='legendonly'
             ))
@@ -610,7 +610,7 @@ def create_psd_plot(
             p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
             fig.add_trace(go.Scatter(
                 x=f_ref, y=p_ref_83, mode='lines',
-                name=r'$f^{-8/3}$',
+                name='f⁻⁸ᐟ³ (Kinetic)',
                 line=dict(dash='dot', width=2, color='#888888'),
                 visible='legendonly'
             ))
