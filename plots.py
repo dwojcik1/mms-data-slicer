@@ -555,36 +555,40 @@ def create_psd_plot(
     frequencies, 
     power, 
     title="Power Spectral Density",
-    psd_units: str = r"PSD",
-    height=600,
-    user_fit_range: tuple = None
+    psd_units: str = r"nT²/Hz",
+    fit1_range: tuple = None,
+    fit2_range: tuple = None,
+    show_reference_slopes: bool = True
 ):
     """
-    Create log-log PSD plot with publication-quality styling.
+    Create publication-quality log-log PSD plot with dual fit support.
     
     Args:
         frequencies: Frequency array in Hz
         power: Power spectral density array
-        title: Plot title (can include LaTeX)
-        psd_units: Y-axis units (LaTeX formatted, e.g., r'$\\mathrm{nT}^2/\\mathrm{Hz}$')
-        height: Plot height in pixels
-        user_fit_range: Optional tuple (f_min, f_max) for user-selected fit range.
-                        If provided, computes and displays a custom spectral fit in red.
+        title: Plot title
+        psd_units: Y-axis units string
+        fit1_range: Optional tuple (f_min, f_max) for first fit (displayed in red)
+        fit2_range: Optional tuple (f_min, f_max) for second fit (displayed in green)
+        show_reference_slopes: Whether to show Kolmogorov and Kinetic reference lines
     
     Returns:
-        Plotly Figure object, and fitted_slope (float or None)
+        Tuple of (fig, alpha1, alpha2) where alphas are fitted slopes or None
     """
     fig = go.Figure()
-    fitted_slope = None
+    alpha1, alpha2 = None, None
+    fit1_midpoint = None
+    fit2_midpoint = None
     
+    # Main PSD trace - BLACK
     fig.add_trace(go.Scattergl(
         x=frequencies, y=power, mode='lines', name='PSD',
-        line=dict(color=COLORS[0], width=2),
+        line=dict(color='#000000', width=1.5),
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
     ))
     
-    # Add reference slopes
-    if len(frequencies) > 2:
+    # Reference slopes (optional)
+    if show_reference_slopes and len(frequencies) > 2:
         f_pos = frequencies[frequencies > 0]
         if len(f_pos) > 0:
             f_min, f_max = f_pos.min(), f_pos.max()
@@ -597,123 +601,165 @@ def create_psd_plot(
             p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
             fig.add_trace(go.Scatter(
                 x=f_ref, y=p_ref_53, mode='lines', 
-                name='f⁻⁵ᐟ³ (Kolmogorov)',
-                line=dict(dash='dash', width=2, color=COLORS[1])
+                name=r'$f^{-5/3}$',
+                line=dict(dash='dash', width=2, color='#888888'),
+                visible='legendonly'
             ))
             
             # Kinetic -8/3 slope
             p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
             fig.add_trace(go.Scatter(
                 x=f_ref, y=p_ref_83, mode='lines',
-                name='f⁻⁸ᐟ³ (Kinetic)',
-                line=dict(dash='dot', width=2, color=COLORS[2])
+                name=r'$f^{-8/3}$',
+                line=dict(dash='dot', width=2, color='#888888'),
+                visible='legendonly'
             ))
     
-    # User-defined fit (red line)
-    if user_fit_range is not None and len(frequencies) > 2:
-        fit_f_min, fit_f_max = user_fit_range
+    # Helper function to compute fit and add to plot
+    def add_fit_trace(fit_range, color, fit_name, fit_idx):
+        if fit_range is None or len(frequencies) < 3:
+            return None, None
+            
+        fit_f_min, fit_f_max = fit_range
         
         # Get data in the fit range
         mask = (frequencies >= fit_f_min) & (frequencies <= fit_f_max) & (frequencies > 0) & (power > 0)
         f_fit = frequencies[mask]
         p_fit = power[mask]
         
-        if len(f_fit) > 2:
-            # Linear fit in log-log space: log(P) = slope * log(f) + intercept
-            log_f = np.log10(f_fit)
-            log_p = np.log10(p_fit)
+        if len(f_fit) < 3:
+            return None, None
             
-            # Linear regression
-            slope, intercept = np.polyfit(log_f, log_p, 1)
-            fitted_slope = slope
-            
-            # Generate fit line extending slightly beyond fit range
-            f_line = np.array([fit_f_min * 0.8, fit_f_max * 1.2])
-            p_line = 10 ** (intercept + slope * np.log10(f_line))
-            
-            # Add fitted line (red, solid)
-            fig.add_trace(go.Scatter(
-                x=f_line, y=p_line, mode='lines',
-                name=f'Fit: f^{slope:.2f}',
-                line=dict(dash='solid', width=3, color='#d62728')  # Red
-            ))
-            
-            # Add shaded fit region
-            fig.add_vrect(
-                x0=fit_f_min, x1=fit_f_max,
-                fillcolor="rgba(214, 39, 40, 0.1)",
-                layer="below",
-                line_width=0,
-            )
+        # Linear fit in log-log space
+        log_f = np.log10(f_fit)
+        log_p = np.log10(p_fit)
+        slope, intercept = np.polyfit(log_f, log_p, 1)
+        
+        # Generate fit line 
+        f_line = np.array([fit_f_min * 0.9, fit_f_max * 1.1])
+        p_line = 10 ** (intercept + slope * np.log10(f_line))
+        
+        # Add fitted line
+        fig.add_trace(go.Scatter(
+            x=f_line, y=p_line, mode='lines',
+            name=f'Fit {fit_idx}',
+            line=dict(dash='solid', width=3, color=color),
+            showlegend=False
+        ))
+        
+        # Add shaded fit region
+        rgba_color = f"rgba({int(color[1:3], 16)}, {int(color[3:5], 16)}, {int(color[5:7], 16)}, 0.08)"
+        fig.add_vrect(
+            x0=fit_f_min, x1=fit_f_max,
+            fillcolor=rgba_color,
+            layer="below",
+            line_width=0,
+        )
+        
+        # Calculate midpoint for annotation
+        mid_f = np.sqrt(fit_f_min * fit_f_max)
+        mid_p = 10 ** (intercept + slope * np.log10(mid_f))
+        
+        return slope, (mid_f, mid_p)
     
-    # Format Y-axis label with physics units
-    ylabel = f"PSD ({psd_units})" if psd_units else "Power Spectral Density"
+    # Fit 1 (Red - Inertial Range)
+    alpha1, fit1_midpoint = add_fit_trace(fit1_range, '#d62728', 'Fit 1', 1)
     
-    # Publication-quality layout
+    # Fit 2 (Green - Kinetic Range)  
+    alpha2, fit2_midpoint = add_fit_trace(fit2_range, '#2ca02c', 'Fit 2', 2)
+    
+    # Add on-plot annotations for slopes
+    if alpha1 is not None and fit1_midpoint is not None:
+        fig.add_annotation(
+            x=np.log10(fit1_midpoint[0]),
+            y=np.log10(fit1_midpoint[1]) + 0.3,
+            text=f"<b>α₁ = {alpha1:.2f}</b>",
+            showarrow=False,
+            font=dict(size=16, color='#d62728', family='Space Grotesk'),
+            bgcolor='rgba(255,255,255,0.85)',
+            bordercolor='#d62728',
+            borderwidth=1,
+            borderpad=4,
+            xref='x', yref='y'
+        )
+    
+    if alpha2 is not None and fit2_midpoint is not None:
+        fig.add_annotation(
+            x=np.log10(fit2_midpoint[0]),
+            y=np.log10(fit2_midpoint[1]) + 0.3,
+            text=f"<b>α₂ = {alpha2:.2f}</b>",
+            showarrow=False,
+            font=dict(size=16, color='#2ca02c', family='Space Grotesk'),
+            bgcolor='rgba(255,255,255,0.85)',
+            bordercolor='#2ca02c',
+            borderwidth=1,
+            borderpad=4,
+            xref='x', yref='y'
+        )
+    
+    # Y-axis label
+    ylabel = f"PSD [{psd_units}]"
+    
+    # Publication-quality layout - SQUARE ASPECT RATIO
     fig.update_layout(
         plot_bgcolor='white',
         paper_bgcolor='white',
-        font=dict(color='black', family='Arial, sans-serif'),
+        font=dict(color='black', family='Space Grotesk, sans-serif'),
         hovermode='x unified',
-        title=dict(
-            text=title,
-            font=dict(size=18, color='black'),
-            x=0.5,
-            xanchor='center',
-            y=0.95
+        
+        # Square dimensions
+        width=700,
+        height=700,
+        
+        # No title in the plot (use st.subheader instead)
+        title=None,
+        
+        xaxis=dict(
+            title_text="Frequency [Hz]",
+            title_font=dict(size=18, color='black'),
+            tickfont=dict(size=14, color='black'),
+            type='log',
+            exponentformat='power',
+            dtick=1,
+            showgrid=True,
+            gridcolor=GRID_COLOR,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
         ),
-        xaxis_title=dict(
-            text="Frequency [Hz]",
-            font=dict(size=14, color='black')
+        
+        yaxis=dict(
+            title_text=ylabel,
+            title_font=dict(size=18, color='black'),
+            tickfont=dict(size=14, color='black'),
+            type='log',
+            exponentformat='power',
+            dtick=1,
+            showgrid=True,
+            gridcolor=GRID_COLOR,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
         ),
-        yaxis_title=dict(
-            text=ylabel,
-            font=dict(size=14, color='black')
-        ),
-        xaxis_type='log',
-        yaxis_type='log',
-        height=height,
-        # Legend above plot to not obscure data
+        
         legend=dict(
             orientation='h',
             yanchor='bottom',
             y=1.02,
             xanchor='center',
             x=0.5,
-            bgcolor='rgba(255,255,255,0.9)',
+            bgcolor='rgba(255,255,255,0.95)',
             bordercolor='rgba(0,0,0,0.2)',
             borderwidth=1,
-            font=dict(size=11, color='black')
+            font=dict(size=13, color='black')
         ),
-        margin=dict(l=70, r=40, t=100, b=60),  # Extra top margin for legend
+        
+        margin=dict(l=80, r=40, t=60, b=80),
     )
     
-    # Axis styling (matches time series plots)
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor=GRID_COLOR,
-        gridwidth=1,
-        tickfont=dict(size=12, color='black'),
-        title_standoff=15,
-        showline=True,
-        linewidth=1,
-        linecolor='black',
-        mirror=True
-    )
-    
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor=GRID_COLOR,
-        gridwidth=1,
-        tickfont=dict(size=12, color='black'),
-        title_standoff=15,
-        showline=True,
-        linewidth=1,
-        linecolor='black',
-        mirror=True
-    )
-    
-    return fig, fitted_slope
+    return fig, alpha1, alpha2
 
 
 def create_pdf_plot(

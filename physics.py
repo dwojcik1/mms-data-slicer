@@ -378,3 +378,68 @@ def fit_power_law(
     r_squared = r_value ** 2
     
     return alpha, A, r_squared
+
+
+def find_target_alpha_range(
+    frequencies: np.ndarray,
+    power: np.ndarray,
+    target_alpha: float = -5/3,
+    window_size: int = 15,
+    min_points: int = 10
+) -> Tuple[float, float, float]:
+    """
+    Find frequency range where local spectral slope matches target alpha.
+    
+    Uses a sliding window to compute local spectral indices and finds
+    the window where the slope is closest to the target value.
+    
+    Args:
+        frequencies: Frequency array in Hz
+        power: Power spectral density array
+        target_alpha: Target spectral index (e.g., -1.67 for Kolmogorov)
+        window_size: Number of points in sliding window for local slope
+        min_points: Minimum points required in a valid window
+        
+    Returns:
+        Tuple of (f_min, f_max, actual_alpha) for the best matching range
+        
+    Raises:
+        ValueError: If insufficient valid data points
+    """
+    # Filter to positive values only
+    mask = (frequencies > 0) & (power > 0) & np.isfinite(frequencies) & np.isfinite(power)
+    f_valid = frequencies[mask]
+    p_valid = power[mask]
+    
+    if len(f_valid) < min_points:
+        raise ValueError(f"Insufficient valid data points: {len(f_valid)}")
+    
+    # Work in log-log space
+    log_f = np.log10(f_valid)
+    log_p = np.log10(p_valid)
+    
+    # Ensure window size is reasonable
+    window_size = min(window_size, len(log_f) // 2)
+    window_size = max(window_size, min_points)
+    
+    best_diff = np.inf
+    best_range = (f_valid[0], f_valid[-1])
+    best_alpha = None
+    
+    # Slide window across the spectrum
+    for i in range(len(log_f) - window_size + 1):
+        log_f_window = log_f[i:i + window_size]
+        log_p_window = log_p[i:i + window_size]
+        
+        # Linear regression in log-log space
+        slope, intercept, r_value, p_value, std_err = stats.linregress(log_f_window, log_p_window)
+        
+        # Check how close this slope is to target
+        diff = abs(slope - target_alpha)
+        
+        if diff < best_diff:
+            best_diff = diff
+            best_range = (f_valid[i], f_valid[i + window_size - 1])
+            best_alpha = slope
+    
+    return (best_range[0], best_range[1], best_alpha)

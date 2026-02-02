@@ -29,7 +29,7 @@ from utils import (
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 
 
-from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display
+from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG
 
 
 # ============================================================================
@@ -1747,8 +1747,10 @@ def _plot_generic_scalar(df, title: str, key: str):
 
 
 def render_psd_analysis(datasets: dict, info: dict):
-    """Render Power Spectral Density analysis."""
+    """Render Power Spectral Density analysis with smart fitting and dual fit support."""
     import pandas as pd
+    from physics import find_target_alpha_range
+    
     st.markdown("### Power Spectral Density")
     
     # Filter to only include DataFrames (not CDFLoader objects)
@@ -1760,85 +1762,243 @@ def render_psd_analysis(datasets: dict, info: dict):
         return
     
     dataset_keys = list(valid_datasets.keys())
-    selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
+    
+    # --- Conditional Dataset Selector ---
+    if len(dataset_keys) == 1:
+        selected_key = dataset_keys[0]
+        st.caption(f"**Dataset:** {selected_key}")
+    else:
+        selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
     
     df = valid_datasets[selected_key]
     columns = list(df.columns)
+    
+    # Variable selection (outside form for immediate feedback)
     selected_col = st.selectbox("Variable", columns, key="psd_col")
     
     data = df[selected_col].values
     clean_data = data[~np.isnan(data)]
     time_data = df.index.values.astype('datetime64[ns]')
     
-    st.markdown(f"#### PSD: {selected_key} {selected_col}")
-    
+    # Compute PSD (cached)
     try:
         psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
-        units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
+    except Exception as e:
+        st.error(f"PSD computation failed: {e}")
+        return
+    
+    # Get frequency bounds
+    f_pos = psd.frequencies[psd.frequencies > 0]
+    if len(f_pos) == 0:
+        st.error("No valid frequency data")
+        return
         
-        # Frequency range for custom fit
-        f_pos = psd.frequencies[psd.frequencies > 0]
-        if len(f_pos) > 0:
-            f_min_data, f_max_data = float(f_pos.min()), float(f_pos.max())
-            
-            st.markdown("##### Custom Spectral Fit")
-            st.caption("Select frequency range to fit your own spectral index (red line)")
-            
-            # Calculate safe default values - use 25% and 75% of log range
-            log_f_min = np.log10(f_min_data)
-            log_f_max = np.log10(f_max_data)
-            log_range = log_f_max - log_f_min
-            default_f_min = float(10 ** (log_f_min + log_range * 0.25))
-            default_f_max = float(10 ** (log_f_min + log_range * 0.75))
-            # Final clamp to ensure within bounds
-            default_f_min = max(f_min_data, min(default_f_min, f_max_data))
-            default_f_max = max(f_min_data, min(default_f_max, f_max_data))
-            if default_f_min >= default_f_max:
-                default_f_min = f_min_data
-                default_f_max = f_max_data
-            
+    f_min_data, f_max_data = float(f_pos.min()), float(f_pos.max())
+    
+    # Determine units based on variable 
+    if 'B' in selected_col.upper():
+        units = "nT²/Hz"
+    elif 'V' in selected_col.upper():
+        units = "km²/s²/Hz"
+    elif 'E' in selected_col.upper():
+        units = "mV²/m²/Hz"
+    else:
+        units = "a.u."
+    
+    # Calculate default values
+    log_f_min = np.log10(f_min_data)
+    log_f_max = np.log10(f_max_data)
+    log_range = log_f_max - log_f_min
+    default_fit1_fmin = float(10 ** (log_f_min + log_range * 0.2))
+    default_fit1_fmax = float(10 ** (log_f_min + log_range * 0.5))
+    default_fit2_fmin = float(10 ** (log_f_min + log_range * 0.5))
+    default_fit2_fmax = float(10 ** (log_f_min + log_range * 0.8))
+    
+    st.divider()
+    
+    # =========================================================================
+    # DUAL FIT CHECKBOX - OUTSIDE FORM for instant reactivity
+    # =========================================================================
+    enable_dual_fit = st.checkbox(
+        "Enable Second Spectral Fit",
+        value=False,
+        key="psd_dual_fit",
+        help="Fit a second power-law to a different frequency range (e.g., kinetic range)"
+    )
+    
+    # =========================================================================
+    # BENTO-STYLE CONTROL PANEL (inside st.form to prevent auto-refresh)
+    # =========================================================================
+    with st.form(key="psd_control_form"):
+        st.markdown("#### Spectral Fit Controls")
+        
+        # Fit Mode Selection
+        fit_mode = st.radio(
+            "Fitting Mode",
+            ["Manual Range", "Target Spectral Index"],
+            horizontal=True,
+            key="psd_fit_mode",
+            help="Manual: Specify frequency range directly. Target: Auto-find range matching a spectral index."
+        )
+        
+        fit1_fmin, fit1_fmax = default_fit1_fmin, default_fit1_fmax
+        fit2_fmin, fit2_fmax = default_fit2_fmin, default_fit2_fmax
+        target_alpha = -5/3
+        
+        if fit_mode == "Manual Range":
+            # --- MODE A: Manual Range ---
+            st.markdown("##### Fit 1 Range (Red)")
             col1, col2 = st.columns(2)
             with col1:
-                fit_f_min = st.slider(
-                    "f_min [Hz]", 
-                    min_value=0.0, 
+                fit1_fmin = st.number_input(
+                    "f₁ min [Hz]",
+                    min_value=f_min_data,
                     max_value=f_max_data,
-                    value=default_f_min,
-                    format="%.2e",
-                    key="psd_fit_fmin_main"
+                    value=default_fit1_fmin,
+                    format="%.4f",
+                    step=0.0,
+                    key="psd_fit1_fmin_input",
+                    help="Lower frequency bound for the first spectral slope"
                 )
             with col2:
-                fit_f_max = st.slider(
-                    "f_max [Hz]", 
-                    min_value=0.0, 
+                fit1_fmax = st.number_input(
+                    "f₁ max [Hz]",
+                    min_value=f_min_data,
                     max_value=f_max_data,
-                    value=default_f_max,
-                    format="%.2e",
-                    key="psd_fit_fmax_main"
+                    value=default_fit1_fmax,
+                    format="%.4f",
+                    step=0.0,
+                    key="psd_fit1_fmax_input",
+                    help="Upper frequency bound for the first spectral slope"
                 )
-            
-            if fit_f_min >= fit_f_max:
-                st.warning("f_min must be less than f_max")
-                user_fit_range = None
-            else:
-                user_fit_range = (fit_f_min, fit_f_max)
         else:
-            user_fit_range = None
+            # --- MODE B: Target Spectral Index ---
+            target_alpha = st.number_input(
+                "Target α",
+                min_value=-5.0,
+                max_value=0.0,
+                value=-5/3,
+                step=0.1,
+                format="%.2f",
+                key="psd_target_alpha",
+                help="Target spectral index (e.g., -1.67 for Kolmogorov, -2.67 for Kinetic)"
+            )
         
-        fig, fitted_slope = create_psd_plot(
-            psd.frequencies, psd.power, 
-            title=f"PSD: {selected_key} {selected_col}", 
-            psd_units=units,
-            user_fit_range=user_fit_range
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # --- DUAL FIT INPUTS (conditionally rendered) ---
+        if enable_dual_fit:
+            st.markdown("##### Fit 2 Range (Green)")
+            col3, col4 = st.columns(2)
+            with col3:
+                fit2_fmin = st.number_input(
+                    "f₂ min [Hz]",
+                    min_value=f_min_data,
+                    max_value=f_max_data,
+                    value=default_fit2_fmin,
+                    format="%.4f",
+                    step=0.0,
+                    key="psd_fit2_fmin_input",
+                    help="Lower frequency bound for the second spectral slope"
+                )
+            with col4:
+                fit2_fmax = st.number_input(
+                    "f₂ max [Hz]",
+                    min_value=f_min_data,
+                    max_value=f_max_data,
+                    value=default_fit2_fmax,
+                    format="%.4f",
+                    step=0.0,
+                    key="psd_fit2_fmax_input",
+                    help="Upper frequency bound for the second spectral slope"
+                )
         
-        if fitted_slope is not None:
-            st.success(f"**Fitted Spectral Index:** α = {fitted_slope:.3f}")
+        # Submit button
+        submitted = st.form_submit_button("🔄 Update Plot", use_container_width=True)
+    
+    st.divider()
+    
+    # =========================================================================
+    # PLOTTING (only when form is submitted or on first load)
+    # =========================================================================
+    
+    # Initialize session state for plot data
+    if 'psd_plot_generated' not in st.session_state:
+        st.session_state.psd_plot_generated = False
+    
+    if submitted or not st.session_state.psd_plot_generated:
+        st.session_state.psd_plot_generated = True
         
-        st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg}")
-    except Exception as e:
-        st.error(str(e))
+        fit1_range = None
+        fit2_range = None
+        
+        if fit_mode == "Manual Range":
+            # Validation
+            if fit1_fmin >= fit1_fmax:
+                st.error("⚠️ f₁ min must be less than f₁ max")
+            else:
+                fit1_range = (fit1_fmin, fit1_fmax)
+        else:
+            # Target Spectral Index mode
+            try:
+                found_fmin, found_fmax, actual_alpha = find_target_alpha_range(
+                    psd.frequencies, psd.power, target_alpha
+                )
+                fit1_range = (found_fmin, found_fmax)
+                st.success(f"Found range: [{found_fmin:.4f}, {found_fmax:.4f}] Hz → α = {actual_alpha:.3f}")
+            except Exception as e:
+                st.error(f"Could not find matching range: {e}")
+        
+        if enable_dual_fit:
+            if fit2_fmin >= fit2_fmax:
+                st.error("⚠️ f₂ min must be less than f₂ max")
+            else:
+                fit2_range = (fit2_fmin, fit2_fmax)
+        
+        # Title using st.subheader (cleaner than Plotly title)
+        st.subheader(f"PSD: {selected_key} — {selected_col}")
+        
+        try:
+            fig, alpha1, alpha2 = create_psd_plot(
+                psd.frequencies, 
+                psd.power, 
+                title="",  # Empty - using st.subheader
+                psd_units=units,
+                fit1_range=fit1_range,
+                fit2_range=fit2_range
+            )
+            
+            st.plotly_chart(fig, use_container_width=False, config=PLOTLY_CONFIG)
+            
+            # =========================================================================
+            # FITTED SPECTRAL INDEX DISPLAY
+            # =========================================================================
+            st.markdown("---")
+            st.markdown("#### Fitted Spectral Indices")
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if alpha1 is not None:
+                    st.metric(
+                        label="Fit 1 (Red — Inertial Range)", 
+                        value=f"α₁ = {alpha1:.3f}"
+                    )
+                else:
+                    st.caption("Fit 1: Not computed")
+            with col_b:
+                if alpha2 is not None:
+                    st.metric(
+                        label="Fit 2 (Green — Kinetic Range)", 
+                        value=f"α₂ = {alpha2:.3f}"
+                    )
+                elif enable_dual_fit:
+                    st.caption("Fit 2: Not computed")
+            
+            # Technical info
+            st.caption(f"Sampling: {psd.sampling_frequency:.2f} Hz | Segments: {psd.nperseg} | Points: {len(clean_data):,}")
+            
+        except Exception as e:
+            st.error(f"Plotting error: {e}")
+    else:
+        st.info("Configure fit parameters above and click **Update Plot** to generate the PSD.")
 
 
 def render_pdf_analysis(datasets: dict, info: dict):
