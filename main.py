@@ -1631,28 +1631,28 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         meta = {'label': key, 'unit': '', 'type': 'scalar'}
         
         if any(x in key_upper for x in ['FGM', 'SCM', 'FSM']):
-             meta = {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
+             meta = {'label': 'B', 'unit': '[nT]', 'type': 'vector'}
              
         elif any(x in key_upper for x in ['EDP', 'EDI']):
-             meta = {'label': r"$\mathbf{E}$", 'unit': "[mV/m]", 'type': 'vector'}
+             meta = {'label': 'E', 'unit': '[mV/m]', 'type': 'vector'}
              
         elif any(x in key_upper for x in ['MEC', 'STATE']):
-             meta = {'label': r"$\mathbf{R}$", 'unit': "[km]", 'type': 'vector'}
+             meta = {'label': 'R', 'unit': '[km]', 'type': 'vector'}
              
         elif any(x in key_upper for x in ['FPI', 'DIS', 'DES']):
             # Distinguish Density vs Velocity based on column names
             is_density = any('dens' in c or 'number' in c for c in cols)
             if is_density:
-                meta = {'label': r"$N$", 'unit': "[cm$^{-3}$]", 'type': 'scalar'}
+                meta = {'label': 'N', 'unit': '[cm⁻³]', 'type': 'scalar'}
             else:
-                meta = {'label': r"$\mathbf{V}$", 'unit': "[km/s]", 'type': 'vector'}
+                meta = {'label': 'V', 'unit': '[km/s]', 'type': 'vector'}
                 
         elif 'HPCA' in key_upper:
             # Usually density or flux, assuming density for dominant moments
-            meta = {'label': r"$N$", 'unit': "[cm$^{-3}$]", 'type': 'scalar'}
+            meta = {'label': 'N', 'unit': '[cm⁻³]', 'type': 'scalar'}
             
         elif any(x in key_upper for x in ['FEEPS', 'EIS']):
-            meta = {'label': r"$J$", 'unit': "[flux]", 'type': 'scalar'}
+            meta = {'label': 'J', 'unit': '[flux]', 'type': 'scalar'}
 
         # --- Dynamic Title Generation ---
         start_dt = df.index[0]

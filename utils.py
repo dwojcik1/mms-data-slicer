@@ -32,133 +32,134 @@ class VariableMetadata:
 
 
 # Regex patterns for variable classification (priority order)
+# Using Unicode instead of LaTeX for Plotly compatibility
 VARIABLE_PATTERNS = [
     # Magnetic Field - FGM
     {
         'pattern': re.compile(r'fgm.*b_gse|b_gse.*fgm', re.IGNORECASE),
-        'label': r'$\mathbf{B}_{GSE}$ (Magnetic Field)',
-        'short_label': r'$\mathbf{B}_{GSE}$',
+        'label': 'B_GSE (Magnetic Field)',
+        'short_label': 'B_GSE',
         'category': 'magnetic_field',
-        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'components': ['Bₓ', 'Bᵧ', 'B_z', '|B|'],
         'units': 'nT',
-        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+        'psd_units': 'nT²/Hz'
     },
     {
         'pattern': re.compile(r'fgm.*b_gsm|b_gsm.*fgm', re.IGNORECASE),
-        'label': r'$\mathbf{B}_{GSM}$ (Magnetic Field)',
-        'short_label': r'$\mathbf{B}_{GSM}$',
+        'label': 'B_GSM (Magnetic Field)',
+        'short_label': 'B_GSM',
         'category': 'magnetic_field',
-        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'components': ['Bₓ', 'Bᵧ', 'B_z', '|B|'],
         'units': 'nT',
-        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+        'psd_units': 'nT²/Hz'
     },
     {
         'pattern': re.compile(r'fgm.*b_dmpa|b_dmpa.*fgm', re.IGNORECASE),
-        'label': r'$\mathbf{B}_{DMPA}$ (Magnetic Field)',
-        'short_label': r'$\mathbf{B}_{DMPA}$',
+        'label': 'B_DMPA (Magnetic Field)',
+        'short_label': 'B_DMPA',
         'category': 'magnetic_field',
-        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'components': ['Bₓ', 'Bᵧ', 'B_z', '|B|'],
         'units': 'nT',
-        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+        'psd_units': 'nT²/Hz'
     },
     {
         'pattern': re.compile(r'fgm.*b_bcs|b_bcs.*fgm', re.IGNORECASE),
-        'label': r'$\mathbf{B}_{BCS}$ (Magnetic Field)',
-        'short_label': r'$\mathbf{B}_{BCS}$',
+        'label': 'B_BCS (Magnetic Field)',
+        'short_label': 'B_BCS',
         'category': 'magnetic_field', 
-        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'components': ['Bₓ', 'Bᵧ', 'B_z', '|B|'],
         'units': 'nT',
-        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+        'psd_units': 'nT²/Hz'
     },
     # Generic magnetic field
     {
         'pattern': re.compile(r'fgm|afg|dfg|scm', re.IGNORECASE),
-        'label': r'$\mathbf{B}$ (Magnetic Field)',
-        'short_label': r'$\mathbf{B}$',
+        'label': 'B (Magnetic Field)',
+        'short_label': 'B',
         'category': 'magnetic_field',
-        'components': [r'$B_x$', r'$B_y$', r'$B_z$', r'$|B|$'],
+        'components': ['Bₓ', 'Bᵧ', 'B_z', '|B|'],
         'units': 'nT',
-        'psd_units': r'$\mathrm{nT}^2/\mathrm{Hz}$'
+        'psd_units': 'nT²/Hz'
     },
     # Ion Velocity - DIS
     {
         'pattern': re.compile(r'dis.*bulkv|dis.*velocity', re.IGNORECASE),
-        'label': r'$\mathbf{V}_i$ (Ion Velocity)',
-        'short_label': r'$\mathbf{V}_i$',
+        'label': 'Vᵢ (Ion Velocity)',
+        'short_label': 'Vᵢ',
         'category': 'velocity',
-        'components': [r'$V_{ix}$', r'$V_{iy}$', r'$V_{iz}$', r'$|V_i|$'],
+        'components': ['Vᵢₓ', 'Vᵢᵧ', 'Vᵢ_z', '|Vᵢ|'],
         'units': 'km/s',
-        'psd_units': r'$(\mathrm{km/s})^2/\mathrm{Hz}$'
+        'psd_units': '(km/s)²/Hz'
     },
     # Electron Velocity - DES
     {
         'pattern': re.compile(r'des.*bulkv|des.*velocity', re.IGNORECASE),
-        'label': r'$\mathbf{V}_e$ (Electron Velocity)',
-        'short_label': r'$\mathbf{V}_e$',
+        'label': 'Vₑ (Electron Velocity)',
+        'short_label': 'Vₑ',
         'category': 'velocity',
-        'components': [r'$V_{ex}$', r'$V_{ey}$', r'$V_{ez}$', r'$|V_e|$'],
+        'components': ['Vₑₓ', 'Vₑᵧ', 'Vₑ_z', '|Vₑ|'],
         'units': 'km/s',
-        'psd_units': r'$(\mathrm{km/s})^2/\mathrm{Hz}$'
+        'psd_units': '(km/s)²/Hz'
     },
     # Electric Field
     {
         'pattern': re.compile(r'edp|dce|e_gse|e_gsm|efield', re.IGNORECASE),
-        'label': r'$\mathbf{E}$ (Electric Field)',
-        'short_label': r'$\mathbf{E}$',
+        'label': 'E (Electric Field)',
+        'short_label': 'E',
         'category': 'electric_field',
-        'components': [r'$E_x$', r'$E_y$', r'$E_z$', r'$|E|$'],
+        'components': ['Eₓ', 'Eᵧ', 'E_z', '|E|'],
         'units': 'mV/m',
-        'psd_units': r'$(\mathrm{mV/m})^2/\mathrm{Hz}$'
+        'psd_units': '(mV/m)²/Hz'
     },
     # Ion Density
     {
         'pattern': re.compile(r'dis.*numberdensity|dis.*density|ni_', re.IGNORECASE),
-        'label': r'$N_i$ (Ion Density)',
-        'short_label': r'$N_i$',
+        'label': 'Nᵢ (Ion Density)',
+        'short_label': 'Nᵢ',
         'category': 'density',
-        'components': [r'$N_i$'],
-        'units': r'cm$^{-3}$',
-        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+        'components': ['Nᵢ'],
+        'units': 'cm⁻³',
+        'psd_units': '(cm⁻³)²/Hz'
     },
     # Electron Density
     {
         'pattern': re.compile(r'des.*numberdensity|des.*density|ne_', re.IGNORECASE),
-        'label': r'$N_e$ (Electron Density)',
-        'short_label': r'$N_e$',
+        'label': 'Nₑ (Electron Density)',
+        'short_label': 'Nₑ',
         'category': 'density',
-        'components': [r'$N_e$'],
-        'units': r'cm$^{-3}$',
-        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+        'components': ['Nₑ'],
+        'units': 'cm⁻³',
+        'psd_units': '(cm⁻³)²/Hz'
     },
     # Generic density
     {
         'pattern': re.compile(r'numberdensity|density', re.IGNORECASE),
-        'label': r'$N$ (Density)',
-        'short_label': r'$N$',
+        'label': 'N (Density)',
+        'short_label': 'N',
         'category': 'density',
-        'components': [r'$N$'],
-        'units': r'cm$^{-3}$',
-        'psd_units': r'$(\mathrm{cm}^{-3})^2/\mathrm{Hz}$'
+        'components': ['N'],
+        'units': 'cm⁻³',
+        'psd_units': '(cm⁻³)²/Hz'
     },
     # Temperature
     {
         'pattern': re.compile(r'temp|t_para|t_perp', re.IGNORECASE),
-        'label': r'$T$ (Temperature)',
-        'short_label': r'$T$',
+        'label': 'T (Temperature)',
+        'short_label': 'T',
         'category': 'temperature',
-        'components': [r'$T$'],
+        'components': ['T'],
         'units': 'eV',
-        'psd_units': r'$\mathrm{eV}^2/\mathrm{Hz}$'
+        'psd_units': 'eV²/Hz'
     },
     # Pressure
     {
         'pattern': re.compile(r'press|pres', re.IGNORECASE),
-        'label': r'$P$ (Pressure)',
-        'short_label': r'$P$',
+        'label': 'P (Pressure)',
+        'short_label': 'P',
         'category': 'pressure',
-        'components': [r'$P$'],
+        'components': ['P'],
         'units': 'nPa',
-        'psd_units': r'$\mathrm{nPa}^2/\mathrm{Hz}$'
+        'psd_units': 'nPa²/Hz'
     },
 ]
 
@@ -199,7 +200,7 @@ def get_variable_metadata(raw_name: str, cdf_units: str = '') -> VariableMetadat
         category='other',
         components=['Value'],
         units=cdf_units if cdf_units else '',
-        psd_units=r'$\mathrm{units}^2/\mathrm{Hz}$'
+        psd_units='units²/Hz'
     )
 
 
