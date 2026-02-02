@@ -1420,7 +1420,13 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
     coord = info.get('coord', 'GSE').upper()
     
     for key, df in datasets.items():
-        if df is None or len(df) == 0:
+        # Skip CDFLoader objects (they're handled separately)
+        if hasattr(df, 'get_time_data') and not hasattr(df, 'columns'):
+            continue
+        if df is None:
+            continue
+        # Use DataFrame.empty for pandas check
+        if hasattr(df, 'empty') and df.empty:
             continue
         
         # --- Metadata Map (Instrument Logic) ---
