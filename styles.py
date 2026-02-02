@@ -15,38 +15,10 @@ def apply_custom_css():
     st.markdown("""
     <style>
     /* ==========================================================================
-       FONT IMPORT - SPACE GROTESK + MATERIAL ICONS
+       USING STREAMLIT DEFAULT FONTS (Source Sans Pro, Source Serif, Source Code)
+       No custom font imports - preserves Material Icons rendering
        ========================================================================== */
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
-    
-    /* Global font application - exclude icon fonts */
-    html, body, [class*="st-"], .stApp, .stApp * {
-        font-family: 'Space Grotesk', sans-serif !important;
-    }
-    
-    /* Hide broken icon text for COLLAPSED sidebar control only */
-    [data-testid="collapsedControl"] {
-        overflow: hidden !important;
-    }
-    
-    [data-testid="collapsedControl"] span {
-        visibility: hidden !important;
-        width: 24px !important;
-        height: 24px !important;
-        position: relative !important;
-    }
-    
-    [data-testid="collapsedControl"] span::after {
-        content: '▸' !important;
-        visibility: visible !important;
-        position: absolute !important;
-        left: 50% !important;
-        top: 50% !important;
-        transform: translate(-50%, -50%) !important;
-        font-size: 18px !important;
-        color: rgba(255, 255, 255, 0.8) !important;
-    }
+
     
     /* ==========================================================================
        ROOT APPLICATION - ELIMINATE WHITE BACKGROUND
