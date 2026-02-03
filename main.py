@@ -1238,8 +1238,8 @@ def render_nasa_download_form():
     from datetime import date, time, timedelta
     
     # MMS mission data availability range
-    mms_min_date = date(2015, 9, 1)
-    mms_max_date = date(2025, 12, 25)
+    mms_min_date = date(2015, 9, 1)  # Mission launch
+    mms_max_date = date.today()       # Dynamic: MMS is an ongoing mission
     
     default_start = date.today() - timedelta(days=1)
     default_end = date.today() - timedelta(days=1)
