@@ -70,6 +70,61 @@ def clean_data(data: np.ndarray, fill_value: float = np.nan) -> Tuple[np.ndarray
     return cleaned, n_removed
 
 
+def _clean_data_and_time(
+    data: np.ndarray,
+    time_data: np.ndarray,
+    fill_value: float = np.nan
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Clean data and time arrays together to keep alignment.
+    """
+    if data is None or time_data is None:
+        raise ValueError("Data and time arrays are required for PSD.")
+    # Ensure 1D arrays
+    data = np.asarray(data).reshape(-1)
+    time_data = np.asarray(time_data).reshape(-1)
+
+    # Align lengths if needed
+    n = min(len(data), len(time_data))
+    data = data[:n]
+    time_data = time_data[:n]
+
+    valid_mask = np.isfinite(data)
+    if fill_value != np.nan:
+        valid_mask &= (data != fill_value)
+
+    # Filter invalid time values
+    if np.issubdtype(time_data.dtype, np.datetime64):
+        # datetime64 can be NaT
+        valid_mask &= ~np.isnat(time_data)
+    else:
+        valid_mask &= np.isfinite(time_data.astype(float))
+
+    return data[valid_mask], time_data[valid_mask]
+
+
+def _estimate_typical_dt(time_data: np.ndarray) -> float:
+    """
+    Estimate typical sampling interval, robust to gaps.
+    """
+    if len(time_data) < 2:
+        raise ValueError("Need at least 2 time points")
+
+    if np.issubdtype(time_data.dtype, np.datetime64):
+        dt = np.diff(time_data).astype('timedelta64[ns]').astype(float) / 1e9
+    else:
+        dt = np.diff(time_data.astype(float))
+
+    positive_dt = dt[dt > 0]
+    if len(positive_dt) == 0:
+        raise ValueError("Invalid time delta")
+
+    # Use lower-quantile median to avoid large gaps
+    q = np.quantile(positive_dt, 0.2)
+    dt_core = positive_dt[positive_dt <= q] if np.any(positive_dt <= q) else positive_dt
+    return float(np.median(dt_core))
+
+
 def calculate_sampling_frequency(time_data: np.ndarray) -> float:
     """
     Calculate sampling frequency from time array.
@@ -80,23 +135,47 @@ def calculate_sampling_frequency(time_data: np.ndarray) -> float:
     Returns:
         Sampling frequency in Hz
     """
+    typical_dt = _estimate_typical_dt(time_data)
+    if typical_dt <= 0:
+        raise ValueError("Invalid time delta")
+    return 1.0 / typical_dt
+
+
+def _largest_contiguous_segment(
+    time_data: np.ndarray,
+    gap_factor: float = 5.0
+) -> slice:
+    """
+    Return slice for the largest contiguous segment without large gaps.
+    """
     if len(time_data) < 2:
-        raise ValueError("Need at least 2 time points")
-    
-    # Calculate time deltas in seconds
+        return slice(0, len(time_data))
+
     if np.issubdtype(time_data.dtype, np.datetime64):
         dt = np.diff(time_data).astype('timedelta64[ns]').astype(float) / 1e9
     else:
-        # Assume already in seconds or numeric
         dt = np.diff(time_data.astype(float))
-    
-    # Use median to be robust against gaps
-    median_dt = np.median(dt[dt > 0])
-    
-    if median_dt <= 0:
-        raise ValueError("Invalid time delta")
-    
-    return 1.0 / median_dt
+
+    positive_dt = dt[dt > 0]
+    if len(positive_dt) == 0:
+        return slice(0, len(time_data))
+
+    typical_dt = _estimate_typical_dt(time_data)
+    gap_thresh = gap_factor * typical_dt
+
+    # Identify segment boundaries where gaps are large
+    gap_idxs = np.where(dt > gap_thresh)[0]
+    if len(gap_idxs) == 0:
+        return slice(0, len(time_data))
+
+    # Build segments
+    starts = np.concatenate(([0], gap_idxs + 1))
+    ends = np.concatenate((gap_idxs + 1, [len(time_data)]))
+
+    # Choose longest segment
+    lengths = ends - starts
+    max_idx = int(np.argmax(lengths))
+    return slice(int(starts[max_idx]), int(ends[max_idx]))
 
 
 @st.cache_data(show_spinner=False)
@@ -124,14 +203,22 @@ def compute_psd_welch(
     Returns:
         PSDResult with frequencies and power
     """
-    # Clean data
-    clean, n_removed = clean_data(_data)
-    
+    # Clean data and time together to keep alignment
+    clean, time_clean = _clean_data_and_time(_data, _time_data)
+
     if len(clean) < 16:
         raise ValueError(f"Insufficient data points after cleaning: {len(clean)}")
-    
-    # Calculate sampling frequency
-    fs = calculate_sampling_frequency(_time_data)
+
+    # If there are large gaps, use the longest contiguous segment
+    seg_slice = _largest_contiguous_segment(time_clean)
+    clean = clean[seg_slice]
+    time_clean = time_clean[seg_slice]
+
+    if len(clean) < 16:
+        raise ValueError(f"Insufficient contiguous data points: {len(clean)}")
+
+    # Calculate sampling frequency from cleaned time
+    fs = calculate_sampling_frequency(time_clean)
     
     # Set default segment length
     if nperseg is None:

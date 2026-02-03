@@ -723,7 +723,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
         if method == "PSD":
             st.markdown(f"#### PSD: {selected_key} {selected_col}")
             try:
-                psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+                psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
                 
                 # Frequency range for custom fit
                 f_pos = psd.frequencies[psd.frequencies > 0]
@@ -915,7 +915,7 @@ def render_dataframe_analysis(df, time_data):
         if method == "PSD":
             st.markdown(f"#### PSD: {selected_col}")
             try:
-                psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+                psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
                 fig, _ = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
                                       psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$")
                 st.plotly_chart(fig, use_container_width=True)
@@ -971,7 +971,7 @@ def render_dataframe_analysis(df, time_data):
             with c2:
                 st.markdown("##### PSD")
                 try:
-                    psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+                    psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
                     fig, _ = create_psd_plot(psd.frequencies, psd.power, 
                                           psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=350)
                     st.plotly_chart(fig, use_container_width=True)
@@ -1898,7 +1898,7 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     time_data = df.index.values.astype('datetime64[ns]')
     
     try:
-        psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+        psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
     except Exception as e:
         st.error(f"PSD computation failed: {e}")
         return
@@ -2213,7 +2213,7 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
     with c2:
         st.markdown("##### Quick PSD")
         try:
-            psd = cached_psd(tuple(clean_data), tuple(time_data[:len(clean_data)].astype(np.int64)))
+            psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
             units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
             fig, _ = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=350)
             st.plotly_chart(fig, use_container_width=True)
