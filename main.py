@@ -1237,16 +1237,24 @@ def render_nasa_download_form():
     
     from datetime import date, time, timedelta
     
+    # MMS mission data availability range
+    mms_min_date = date(2015, 9, 1)
+    mms_max_date = date(2025, 12, 25)
+    
     default_start = date.today() - timedelta(days=1)
     default_end = date.today() - timedelta(days=1)
     
+    # Clamp defaults to valid range
+    default_start = max(mms_min_date, min(default_start, mms_max_date))
+    default_end = max(mms_min_date, min(default_end, mms_max_date))
+    
     t1, t2, t3, t4 = st.columns(4)
     with t1:
-        start_date = st.date_input("Start Date", value=default_start)
+        start_date = st.date_input("Start Date", value=default_start, min_value=mms_min_date, max_value=mms_max_date)
     with t2:
         start_time = st.time_input("Start Time", value=time(12, 0))
     with t3:
-        end_date = st.date_input("End Date", value=default_end)
+        end_date = st.date_input("End Date", value=default_end, min_value=mms_min_date, max_value=mms_max_date)
     with t4:
         end_time = st.time_input("End Time", value=time(12, 30))
 
