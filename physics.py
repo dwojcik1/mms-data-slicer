@@ -9,6 +9,7 @@ from scipy import signal
 from scipy import stats
 from typing import Tuple, Dict, Optional, Union
 from dataclasses import dataclass
+import streamlit as st
 
 
 @dataclass
@@ -98,9 +99,10 @@ def calculate_sampling_frequency(time_data: np.ndarray) -> float:
     return 1.0 / median_dt
 
 
+@st.cache_data(show_spinner=False)
 def compute_psd_welch(
-    data: np.ndarray,
-    time_data: np.ndarray,
+    _data: np.ndarray,
+    _time_data: np.ndarray,
     nperseg: Optional[int] = None,
     noverlap: Optional[int] = None,
     window: str = 'hann',
@@ -123,13 +125,13 @@ def compute_psd_welch(
         PSDResult with frequencies and power
     """
     # Clean data
-    clean, n_removed = clean_data(data)
+    clean, n_removed = clean_data(_data)
     
     if len(clean) < 16:
         raise ValueError(f"Insufficient data points after cleaning: {len(clean)}")
     
     # Calculate sampling frequency
-    fs = calculate_sampling_frequency(time_data)
+    fs = calculate_sampling_frequency(_time_data)
     
     # Set default segment length
     if nperseg is None:
@@ -163,8 +165,9 @@ def compute_psd_welch(
     )
 
 
+@st.cache_data(show_spinner=False)
 def compute_pdf(
-    data: np.ndarray,
+    _data: np.ndarray,
     n_bins: int = 50,
     range_sigma: float = 5.0,
     density: bool = True
@@ -182,7 +185,7 @@ def compute_pdf(
         PDFResult with bin centers and density values
     """
     # Clean data
-    clean, n_removed = clean_data(data)
+    clean, n_removed = clean_data(_data)
     
     if len(clean) < 10:
         raise ValueError(f"Insufficient data points: {len(clean)}")
@@ -219,7 +222,8 @@ def compute_pdf(
     )
 
 
-def compute_statistics(data: np.ndarray) -> StatisticsResult:
+@st.cache_data(show_spinner=False)
+def compute_statistics(_data: np.ndarray) -> StatisticsResult:
     """
     Compute statistical moments and descriptors.
     
@@ -230,10 +234,10 @@ def compute_statistics(data: np.ndarray) -> StatisticsResult:
         StatisticsResult with mean, median, std, variance, skewness, kurtosis
     """
     # Count NaN before cleaning
-    n_nan = np.sum(~np.isfinite(data))
+    n_nan = np.sum(~np.isfinite(_data))
     
     # Clean data
-    clean, _ = clean_data(data)
+    clean, _ = clean_data(_data)
     
     if len(clean) < 4:
         raise ValueError(f"Insufficient data points: {len(clean)}")
@@ -339,9 +343,10 @@ def compute_flatness(data: np.ndarray, scales: Optional[np.ndarray] = None) -> T
     return scales[:len(flatness)], np.array(flatness)
 
 
+@st.cache_data(show_spinner=False)
 def fit_power_law(
-    x: np.ndarray,
-    y: np.ndarray,
+    _x: np.ndarray,
+    _y: np.ndarray,
     x_range: Optional[Tuple[float, float]] = None
 ) -> Tuple[float, float, float]:
     """
@@ -356,13 +361,13 @@ def fit_power_law(
         Tuple of (alpha, A, r_squared) where y = A * x^alpha
     """
     # Filter to positive values
-    mask = (x > 0) & (y > 0) & np.isfinite(x) & np.isfinite(y)
+    mask = (_x > 0) & (_y > 0) & np.isfinite(_x) & np.isfinite(_y)
     
     if x_range is not None:
-        mask &= (x >= x_range[0]) & (x <= x_range[1])
+        mask &= (_x >= x_range[0]) & (_x <= x_range[1])
     
-    x_fit = x[mask]
-    y_fit = y[mask]
+    x_fit = _x[mask]
+    y_fit = _y[mask]
     
     if len(x_fit) < 3:
         raise ValueError("Insufficient data points for power law fit")
@@ -380,9 +385,10 @@ def fit_power_law(
     return alpha, A, r_squared
 
 
+@st.cache_data(show_spinner=False)
 def find_target_alpha_range(
-    frequencies: np.ndarray,
-    power: np.ndarray,
+    _frequencies: np.ndarray,
+    _power: np.ndarray,
     target_alpha: float = -5/3,
     window_size: int = 15,
     min_points: int = 10
@@ -407,9 +413,9 @@ def find_target_alpha_range(
         ValueError: If insufficient valid data points
     """
     # Filter to positive values only
-    mask = (frequencies > 0) & (power > 0) & np.isfinite(frequencies) & np.isfinite(power)
-    f_valid = frequencies[mask]
-    p_valid = power[mask]
+    mask = (_frequencies > 0) & (_power > 0) & np.isfinite(_frequencies) & np.isfinite(_power)
+    f_valid = _frequencies[mask]
+    p_valid = _power[mask]
     
     if len(f_valid) < min_points:
         raise ValueError(f"Insufficient valid data points: {len(f_valid)}")

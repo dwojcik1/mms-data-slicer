@@ -599,7 +599,7 @@ def create_psd_plot(
             
             # Kolmogorov -5/3 slope (using Unicode superscripts for legend)
             p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=f_ref, y=p_ref_53, mode='lines', 
                 name='f⁻⁵ᐟ³ (Kolmogorov)',
                 line=dict(dash='dash', width=2, color='#888888'),
@@ -608,7 +608,7 @@ def create_psd_plot(
             
             # Kinetic -8/3 slope
             p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=f_ref, y=p_ref_83, mode='lines',
                 name='f⁻⁸ᐟ³ (Kinetic)',
                 line=dict(dash='dot', width=2, color='#888888'),
@@ -669,7 +669,7 @@ def create_psd_plot(
     # Add fit lines AFTER PSD so they render ON TOP
     if fit1_result[0] is not None:
         f_line, p_line, color = fit1_result[2]
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=f_line, y=p_line, mode='lines',
             name='Fit 1',
             line=dict(dash='solid', width=3, color=color),
@@ -678,7 +678,7 @@ def create_psd_plot(
     
     if fit2_result[0] is not None:
         f_line, p_line, color = fit2_result[2]
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=f_line, y=p_line, mode='lines',
             name='Fit 2',
             line=dict(dash='solid', width=3, color=color),
@@ -810,7 +810,7 @@ def create_pdf_plot(
             x_gauss = np.linspace(bin_centers.min(), bin_centers.max(), 100)
             y_gauss = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-(x_gauss - mean)**2 / (2 * std**2))
             
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=x_gauss, y=y_gauss, mode='lines', name='Gaussian',
                 line=dict(color=COLORS[1], width=2, dash='dash')
             ))

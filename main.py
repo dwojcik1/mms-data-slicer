@@ -1685,12 +1685,19 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
             date_str = f"{start_dt.strftime('%d %b %Y %H:%M')} – {end_dt.strftime('%d %b %Y %H:%M')}"
             title = f"MMS {probe} | {meta['label']} | {coord} | {date_str}"
         
-        # --- Subsampling ---
-        if len(df) > subsample_pts:
-            step = len(df) // subsample_pts
-            plot_df = df.iloc[::step]
+        # --- Subsampling with Persistence ---
+        # Cache subsampled data to avoid recomputing on every rerun
+        cache_key = f"{key}_{subsample_pts}_{len(df)}"
+        if st.session_state.get('subsample_cache_key') != cache_key:
+            if len(df) > subsample_pts:
+                step = len(df) // subsample_pts
+                plot_df = df.iloc[::step].copy()
+            else:
+                plot_df = df.copy()
+            st.session_state['data_subsampled'] = plot_df
+            st.session_state['subsample_cache_key'] = cache_key
         else:
-            plot_df = df
+            plot_df = st.session_state['data_subsampled']
         
         # --- Plotting ---
         # Simple help text (avoiding Streamlit components with Material Icons font issues)
