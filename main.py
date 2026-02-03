@@ -1235,11 +1235,21 @@ def render_nasa_download_form():
     if start_avail and end_avail:
         st.caption(f"▫ Data available from: **{start_avail}** to **{end_avail}**")
     
-    from datetime import date, time, timedelta
+    from datetime import date, time, timedelta, datetime
     
-    # MMS mission data availability range
-    mms_min_date = date(2015, 9, 1)  # Mission launch
-    mms_max_date = date.today()       # Dynamic: MMS is an ongoing mission
+    # Parse dynamic data availability range from the instrument
+    if start_avail and end_avail:
+        try:
+            mms_min_date = datetime.strptime(start_avail, "%Y-%m-%d").date()
+            mms_max_date = datetime.strptime(end_avail, "%Y-%m-%d").date()
+        except ValueError:
+            # Fallback if parsing fails
+            mms_min_date = date(2015, 9, 1)
+            mms_max_date = date.today()
+    else:
+        # Fallback if no availability data
+        mms_min_date = date(2015, 9, 1)
+        mms_max_date = date.today()
     
     default_start = date.today() - timedelta(days=1)
     default_end = date.today() - timedelta(days=1)
