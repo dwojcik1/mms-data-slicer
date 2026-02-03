@@ -12,6 +12,8 @@ import warnings
 import tempfile
 import os
 import streamlit as st
+import zipfile
+from typing import Dict, Any, Tuple
 
 
 @st.cache_data(show_spinner="Downloading FGM data from NASA CDAWeb...")
@@ -193,6 +195,132 @@ def load_fgm_cdasws(
     
     return df
 
+
+def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
+    """
+    Download MMS CDF files using PySPEDAS and return a local file path + filename.
+
+    If multiple CDFs are downloaded for the requested trange, they are zipped.
+    """
+    try:
+        import pyspedas
+    except ImportError as e:
+        raise ImportError("pyspedas is required for CDF export. Please install it.") from e
+
+    trange = download_info.get("trange", None)
+    if not trange or len(trange) != 2:
+        raise ValueError("Missing time range for CDF export.")
+
+    instrument = (download_info.get("instrument", "") or "").lower()
+    probe = download_info.get("probe", "1")
+    data_rate = download_info.get("data_rate", "srvy") or "srvy"
+    level = download_info.get("level", "l2") or "l2"
+    datatype = download_info.get("datatype", "")
+    coord = download_info.get("coord", "")
+
+    func_map = {
+        "fgm": pyspedas.projects.mms.fgm,
+        "scm": pyspedas.projects.mms.scm,
+        "fsm": pyspedas.projects.mms.fsm,
+        "edp": pyspedas.projects.mms.edp,
+        "edi": pyspedas.projects.mms.edi,
+        "feeps": pyspedas.projects.mms.feeps,
+        "eis": pyspedas.projects.mms.eis,
+        "fpi": pyspedas.projects.mms.fpi,
+        "hpca": pyspedas.projects.mms.hpca,
+        "mec": pyspedas.projects.mms.mec,
+        "state": pyspedas.projects.mms.state,
+    }
+
+    if instrument not in func_map:
+        raise ValueError(f"PySPEDAS export not supported for instrument: {instrument}")
+
+    temp_dir = tempfile.mkdtemp(prefix="pyspedas_mms_")
+    os.environ["SPEDAS_DATA_DIR"] = temp_dir
+    os.environ["MMS_DATA_DIR"] = temp_dir
+    # Ensure PySPEDAS writes to our temp dir
+    try:
+        pyspedas.config.CONFIG["local_data_dir"] = temp_dir
+    except Exception:
+        pass
+
+    def _format_trange(tr):
+        # Convert "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DD/HH:MM:SS"
+        out = []
+        for t in tr:
+            if " " in t and "/" not in t:
+                out.append(t.replace(" ", "/"))
+            else:
+                out.append(t)
+        return out
+
+    trange_fmt = _format_trange(trange)
+
+    load_func = func_map[instrument]
+
+    # Attempt download-only mode; fall back if signature doesn't accept it
+    kwargs = dict(
+        trange=trange_fmt,
+        probe=probe,
+        data_rate=data_rate,
+        level=level,
+        time_clip=True,
+        spdf=True
+    )
+    if datatype:
+        kwargs["datatype"] = datatype
+    if coord and instrument not in {"fgm", "fsm"}:
+        kwargs["coord"] = coord.lower()
+
+    file_list = []
+    try:
+        file_list = load_func(**kwargs, downloadonly=True, notplot=True) or []
+    except TypeError:
+        # Fallback if downloadonly isn't supported
+        try:
+            file_list = load_func(**kwargs, notplot=True) or []
+        except TypeError:
+            file_list = load_func(**kwargs) or []
+
+    cdf_files = []
+    # If the loader returns file paths directly, prefer those
+    for f in file_list:
+        if isinstance(f, str) and f.lower().endswith(".cdf") and os.path.exists(f):
+            cdf_files.append(f)
+
+    # Fallback: search in temp_dir and PySPEDAS local data dir
+    search_dirs = [temp_dir]
+    try:
+        base_dir = pyspedas.config.CONFIG.get("local_data_dir", "")
+        if base_dir and base_dir not in search_dirs:
+            search_dirs.append(base_dir)
+    except Exception:
+        pass
+
+    for base in search_dirs:
+        for root, _, files in os.walk(base):
+            for fname in files:
+                if fname.lower().endswith(".cdf"):
+                    cdf_files.append(os.path.join(root, fname))
+    for root, _, files in os.walk(temp_dir):
+        for fname in files:
+            if fname.lower().endswith(".cdf"):
+                cdf_files.append(os.path.join(root, fname))
+
+    if not cdf_files:
+        raise FileNotFoundError("No CDF files downloaded by PySPEDAS.")
+
+    cdf_files.sort()
+
+    if len(cdf_files) == 1:
+        return cdf_files[0], os.path.basename(cdf_files[0])
+
+    zip_path = os.path.join(temp_dir, "mms_cdf_export.zip")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in cdf_files:
+            zf.write(f, arcname=os.path.basename(f))
+
+    return zip_path, os.path.basename(zip_path)
 
 
 @st.cache_data(show_spinner="Downloading FPI data from NASA CDAWeb...")

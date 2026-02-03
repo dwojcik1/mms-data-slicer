@@ -8,4 +8,4 @@ scipy>=1.11.0
 
 # NASA CDAWeb data download
 cdasws>=1.8.0
-
+pyspedas>=1.7.28

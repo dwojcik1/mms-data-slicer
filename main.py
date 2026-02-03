@@ -1634,7 +1634,7 @@ def render_sidebar():
                 export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
             export_format = st.selectbox(
                 "Format", 
-                ["CSV (.csv)", "Text File (.txt)"],
+                ["CSV (.csv)", "Text File (.txt)", "CDF (.cdf)"],
                 key="export_format"
             )
             
@@ -1652,7 +1652,7 @@ def render_sidebar():
                         mime="text/csv",
                         use_container_width=True
                     )
-                else:
+                elif "Text" in export_format:
                     txt_data = export_df.to_csv(sep='\t', index=True)
                     st.download_button(
                         label="Download TXT",
@@ -1661,6 +1661,25 @@ def render_sidebar():
                         mime="text/plain",
                         use_container_width=True
                     )
+                else:
+                    # CDF export using PySPEDAS
+                    try:
+                        from downloader import download_cdf_pyspedas
+                        with st.spinner("Preparing CDF export via PySPEDAS..."):
+                            cdf_path, cdf_name = download_cdf_pyspedas(
+                                st.session_state.get("download_info", {})
+                            )
+                        with open(cdf_path, "rb") as f:
+                            cdf_bytes = f.read()
+                        st.download_button(
+                            label="Download CDF",
+                            data=cdf_bytes,
+                            file_name=cdf_name,
+                            mime="application/octet-stream",
+                            use_container_width=True
+                        )
+                    except Exception as e:
+                        st.error(f"CDF export failed: {e}")
             
             # No bottom divider
 
