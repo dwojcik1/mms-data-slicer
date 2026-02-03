@@ -7,12 +7,10 @@ Forces dark theme across ALL Streamlit elements.
 import streamlit as st
 
 
-def apply_custom_css():
-    """
-    Apply Deep Space theme with aggressive !important overrides.
-    Targets ROOT DOM elements to eliminate white backgrounds.
-    """
-    st.markdown("""
+@st.cache_resource
+def _get_cached_css() -> str:
+    """Return cached CSS string to avoid re-parsing on every rerun."""
+    return """
     <style>
     /* ==========================================================================
        USING STREAMLIT DEFAULT FONTS (Source Sans Pro, Source Serif, Source Code)
@@ -387,7 +385,15 @@ def apply_custom_css():
         background: rgba(255,255,255,0.25);
     }
     </style>
-    """, unsafe_allow_html=True)
+    """
+
+
+def apply_custom_css():
+    """
+    Apply Deep Space theme with aggressive !important overrides.
+    Uses cached CSS string for performance.
+    """
+    st.markdown(_get_cached_css(), unsafe_allow_html=True)
 
 
 def get_responsive_columns():
