@@ -175,6 +175,14 @@ def _get_cached_css() -> str:
     .stSlider > div {
         background: transparent !important;
     }
+
+    /* Sidebar: tighten vertical spacing between slider and number input */
+    section[data-testid="stSidebar"] [data-testid="stSlider"] {
+        margin-bottom: -0.35rem !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stNumberInput"] {
+        margin-top: -0.15rem !important;
+    }
     
     /* ==========================================================================
        EXPANDERS - GLASS STYLE

@@ -31,6 +31,23 @@ from physics import compute_psd_welch, compute_pdf, compute_statistics
 
 from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG
 
+# ============================================================================
+# Utilities
+# ============================================================================
+
+def _subsample_df(df, target_pts: int):
+    """Return a subsampled DataFrame with ~target_pts rows (uniformly spaced)."""
+    if target_pts <= 0:
+        return df
+    n = len(df)
+    if n <= target_pts:
+        return df
+    target = max(2, min(target_pts, n))
+    idx = np.linspace(0, n - 1, num=target, dtype=int)
+    # Ensure unique and sorted indices
+    idx = np.unique(idx)
+    return df.iloc[idx].copy()
+
 
 # ============================================================================
 # Mission Intelligence Modal
@@ -634,9 +651,8 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
                 time_range = ""
             
             # Subsample
-            if sub and len(df) > pts:
-                step = len(df) // pts
-                plot_df = df.iloc[::step]
+            if sub:
+                plot_df = _subsample_df(df, pts)
             else:
                 plot_df = df
             
@@ -1474,16 +1490,57 @@ def render_sidebar():
             default_pts = 30000
             total_len = 0
         
+        # Keep total length in session state for callbacks
+        st.session_state["total_len"] = total_len
+
         # Single number input for subsample control
         min_pts = 100  # Allow smaller datasets
         safe_default = max(min_pts, min(default_pts, max_pts))
+
+        # Sync callbacks between percent slider and absolute points
+        def _update_pts_from_pct():
+            total = st.session_state.get("total_len", 0)
+            pct = st.session_state.get("subsample_pct", 100)
+            if total > 0:
+                pts = int(total * (pct / 100.0))
+                pts = max(min_pts, min(max_pts, pts))
+                st.session_state["subsample_pts"] = pts
+
+        def _update_pct_from_pts():
+            total = st.session_state.get("total_len", 0)
+            pts = st.session_state.get("subsample_pts", safe_default)
+            if total > 0:
+                pct = int(round((pts / total) * 100))
+                pct = max(1, min(100, pct))
+                st.session_state["subsample_pct"] = pct
+
+        # Initialize percent if missing
+        if "subsample_pct" not in st.session_state:
+            if total_len > 0:
+                st.session_state["subsample_pct"] = int(round((safe_default / total_len) * 100))
+            else:
+                st.session_state["subsample_pct"] = 30
+
+        # Percent slider control
+        st.slider(
+            "Sample (%)",
+            min_value=1,
+            max_value=100,
+            value=st.session_state["subsample_pct"],
+            step=1,
+            disabled=(total_len == 0),
+            key="subsample_pct",
+            on_change=_update_pts_from_pct
+        )
+
         subsample_pts = st.number_input(
             "Subsample Points",
             min_value=min_pts,
             max_value=max_pts,
             value=safe_default,
             step=1000,
-            key="subsample_pts"
+            key="subsample_pts",
+            on_change=_update_pct_from_pts
         )
         
         # Explanation text
@@ -1616,9 +1673,9 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
     if analysis_mode == "Time Series Inspector":
         render_time_series_analysis(data, info, subsample_pts)
     elif analysis_mode == "Power Spectral Density":
-        render_psd_analysis(data, info)
+        render_psd_analysis(data, info, subsample_pts)
     elif analysis_mode == "PDF & Moments":
-        render_pdf_analysis(data, info)
+        render_pdf_analysis(data, info, subsample_pts)
     elif analysis_mode == "Summary Statistics":
         render_summary_analysis(data, info, subsample_pts)
 
@@ -1688,16 +1745,10 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         # --- Subsampling with Persistence ---
         # Cache subsampled data to avoid recomputing on every rerun
         cache_key = f"{key}_{subsample_pts}_{len(df)}"
-        if st.session_state.get('subsample_cache_key') != cache_key:
-            if len(df) > subsample_pts:
-                step = len(df) // subsample_pts
-                plot_df = df.iloc[::step].copy()
-            else:
-                plot_df = df.copy()
-            st.session_state['data_subsampled'] = plot_df
-            st.session_state['subsample_cache_key'] = cache_key
-        else:
-            plot_df = st.session_state['data_subsampled']
+        subsample_cache = st.session_state.setdefault('subsample_cache', {})
+        if cache_key not in subsample_cache:
+            subsample_cache[cache_key] = _subsample_df(df, subsample_pts)
+        plot_df = subsample_cache[cache_key]
         
         # --- Plotting ---
         # Simple help text (avoiding Streamlit components with Material Icons font issues)
@@ -1777,7 +1828,7 @@ def _plot_generic_scalar(df, title: str, key: str):
     return fig
 
 
-def render_psd_analysis(datasets: dict, info: dict):
+def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     """Render Power Spectral Density analysis with smart fitting and dual fit support."""
     import pandas as pd
     from physics import find_target_alpha_range
@@ -1806,6 +1857,8 @@ def render_psd_analysis(datasets: dict, info: dict):
         selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
     
     df = valid_datasets[selected_key]
+    if subsample_pts:
+        df = _subsample_df(df, subsample_pts)
     columns = list(df.columns)
     
     # Variable Selection
@@ -2016,7 +2069,7 @@ def render_psd_analysis(datasets: dict, info: dict):
         st.error(f"Plotting error: {e}")
 
 
-def render_pdf_analysis(datasets: dict, info: dict):
+def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
     """Render PDF & Moments analysis."""
     import pandas as pd
     st.markdown("### PDF & Moments")
@@ -2033,6 +2086,8 @@ def render_pdf_analysis(datasets: dict, info: dict):
     selected_key = st.selectbox("Dataset", dataset_keys, key="pdf_dataset")
     
     df = valid_datasets[selected_key]
+    if subsample_pts:
+        df = _subsample_df(df, subsample_pts)
     columns = list(df.columns)
     selected_col = st.selectbox("Variable", columns, key="pdf_col")
     
@@ -2154,4 +2209,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
