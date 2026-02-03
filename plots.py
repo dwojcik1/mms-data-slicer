@@ -587,33 +587,60 @@ def create_psd_plot(
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
     )
     
-    # Reference slopes (optional)
+    # Reference slopes (optional) - add AFTER PSD for correct z-order
+    ref_traces = []
     if show_reference_slopes and len(frequencies) > 2:
         f_pos = frequencies[frequencies > 0]
         if len(f_pos) > 0:
             f_min, f_max = f_pos.min(), f_pos.max()
-            f_mid = np.sqrt(f_min * f_max)
-            p_mid = np.interp(f_mid, frequencies, power)
-            
-            f_ref = np.array([f_mid / 10, f_mid * 10])
-            
-            # Kolmogorov -5/3 slope (using Unicode superscripts for legend)
-            p_ref_53 = p_mid * (f_ref / f_mid) ** (-5/3)
-            fig.add_trace(go.Scattergl(
-                x=f_ref, y=p_ref_53, mode='lines', 
-                name='f⁻⁵ᐟ³ (Kolmogorov)',
-                line=dict(dash='dash', width=2, color='#888888'),
-                visible='legendonly'
-            ))
-            
-            # Kinetic -8/3 slope
-            p_ref_83 = p_mid * (f_ref / f_mid) ** (-8/3)
-            fig.add_trace(go.Scattergl(
-                x=f_ref, y=p_ref_83, mode='lines',
-                name='f⁻⁸ᐟ³ (Kinetic)',
-                line=dict(dash='dot', width=2, color='#888888'),
-                visible='legendonly'
-            ))
+            log_min = np.log10(f_min)
+            log_max = np.log10(f_max)
+            log_span = log_max - log_min
+            # Regions: inertial (left), kinetic (mid-right), dissipation (far right)
+            f_inertial_min = 10 ** (log_min + 0.05 * log_span)
+            f_inertial_max = 10 ** (log_min + 0.55 * log_span)
+            f_kinetic_min = 10 ** (log_min + 0.55 * log_span)
+            f_kinetic_max = 10 ** (log_min + 0.90 * log_span)
+            f_diss_min = 10 ** (log_min + 0.90 * log_span)
+            f_diss_max = 10 ** (log_min + 0.99 * log_span)
+
+            def _ref_segment(f_start, f_end, slope, label, dash):
+                if f_start <= 0 or f_end <= 0 or f_end <= f_start:
+                    return None
+                f_ref = np.array([f_start, f_end])
+                f_anchor = np.sqrt(f_start * f_end)
+                p_anchor = np.interp(f_anchor, frequencies, power)
+                p_ref = p_anchor * (f_ref / f_anchor) ** slope
+                return go.Scattergl(
+                    x=f_ref, y=p_ref, mode='lines',
+                    name=label,
+                    line=dict(dash=dash, width=2, color='#888888'),
+                    visible='legendonly'
+                )
+
+            # Kolmogorov -5/3 slope (inertial range)
+            tr = _ref_segment(
+                f_inertial_min, f_inertial_max, -5/3,
+                'f⁻⁵ᐟ³ (Kolmogorov)', 'dash'
+            )
+            if tr is not None:
+                ref_traces.append(tr)
+
+            # Kinetic -8/3 slope (kinetic range)
+            tr = _ref_segment(
+                f_kinetic_min, f_kinetic_max, -8/3,
+                'f⁻⁸ᐟ³ (Kinetic)', 'dot'
+            )
+            if tr is not None:
+                ref_traces.append(tr)
+
+            # Dissipation ~ -2.8 slope (dissipation range)
+            tr = _ref_segment(
+                f_diss_min, f_diss_max, -2.8,
+                'f⁻²·⁸ (Dissipation)', 'dashdot'
+            )
+            if tr is not None:
+                ref_traces.append(tr)
     
     # Helper function to compute fit and add to plot
     def add_fit_trace(fit_range, color, fit_name, fit_idx):
@@ -665,6 +692,10 @@ def create_psd_plot(
     
     # Add PSD trace FIRST
     fig.add_trace(psd_trace)
+    
+    # Add reference slopes AFTER PSD so they render on top when enabled
+    for tr in ref_traces:
+        fig.add_trace(tr)
     
     # Add fit lines AFTER PSD so they render ON TOP
     if fit1_result[0] is not None:
@@ -741,9 +772,10 @@ def create_psd_plot(
             showgrid=True,
             gridcolor=GRID_COLOR,
             showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True
+            linewidth=0.8,
+            linecolor='#666666',
+            mirror=True,
+            minor=dict(ticks="outside", ticklen=4, showgrid=True, gridcolor="rgba(0,0,0,0.08)")
         ),
         
         yaxis=dict(
@@ -756,9 +788,10 @@ def create_psd_plot(
             showgrid=True,
             gridcolor=GRID_COLOR,
             showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True
+            linewidth=0.8,
+            linecolor='#666666',
+            mirror=True,
+            minor=dict(ticks="outside", ticklen=4, showgrid=True, gridcolor="rgba(0,0,0,0.08)")
         ),
         
         legend=dict(

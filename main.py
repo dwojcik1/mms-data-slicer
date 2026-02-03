@@ -1456,17 +1456,27 @@ def render_sidebar():
     """Render the sidebar with global controls and analysis navigation."""
     
     with st.sidebar:
-        st.markdown("### Global Controls ◎")
+        st.markdown("<div style='margin-top:-0.9rem'></div>", unsafe_allow_html=True)
+        # Load new data button (only after data is loaded / sub-pages)
+        data_loaded = st.session_state.get('data_loaded', False)
+        if data_loaded:
+            if st.button("Load New Data", use_container_width=True):
+                st.session_state.data = None
+                st.session_state.data_loaded = False
+                st.session_state.download_info = {}
+                st.session_state.upload_info = {}
+                st.rerun()
         
         # Mission Info Button - opens modal
         if st.button("🚀 Mission Info", use_container_width=True, help="Learn about the MMS mission"):
             view_mission_modal()
         
+        st.markdown("### Global Controls")
+        
         st.markdown("")  # Spacing
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
-        data_loaded = st.session_state.get('data_loaded', False)
         
         if data_loaded and data:
             # Safely calculate total length - only count pandas DataFrames
@@ -1523,7 +1533,7 @@ def render_sidebar():
 
         # Percent slider control
         st.slider(
-            "Sample (%)",
+            "Subsample (%)",
             min_value=1,
             max_value=100,
             value=st.session_state["subsample_pct"],
@@ -1544,9 +1554,15 @@ def render_sidebar():
         )
         
         # Explanation text
-        st.info(
-            "**Note:** Large datasets are subsampled to maintain performance. "
+        st.markdown(
+            "<div style='font-size:0.78rem; padding:6px 10px; "
+            "border:1px solid rgba(255,255,255,0.08); border-radius:8px; "
+            "background: rgba(255,255,255,0.03);'>"
+            "<span style='color:#ef4444; font-size:1.15rem; font-weight:700; margin-right:6px;'>❗</span>"
+            "<strong>Note:</strong> Large datasets are subsampled to maintain performance. "
             "Increasing this value improves resolution but increases memory usage."
+            "</div>",
+            unsafe_allow_html=True
         )
         
         st.divider()
@@ -1582,10 +1598,15 @@ def render_sidebar():
                 st.warning("BURST mode — not available for long durations")
             elif data_rate == 'fast':
                 st.caption("FAST cadence ≈ **4.5 s**")
-            st.divider()
+            if data_loaded and info:
+                st.caption(
+                    f"MMS{info.get('probe', '?')} {info.get('instrument', '')} "
+                    f"{info.get('coord', '')} ({info.get('data_rate', '')}/{info.get('level', '')})"
+                )
+            # no divider here
         
         # Analysis mode navigation
-        st.markdown("### Analysis Mode ▣")
+        st.markdown("### Analysis Mode")
         
         if data_loaded:
             analysis_mode = st.radio(
@@ -1598,7 +1619,7 @@ def render_sidebar():
             st.info("Load data to enable analysis")
             analysis_mode = None
         
-        st.divider()
+            # no divider here
 
         
         # Data Export section (only when data is loaded)
@@ -1606,7 +1627,11 @@ def render_sidebar():
             st.markdown("### Export Data")
             
             dataset_keys = list(data.keys())
-            export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
+            if len(dataset_keys) == 1:
+                export_dataset = dataset_keys[0]
+                st.caption(f"Dataset: {export_dataset}")
+            else:
+                export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
             export_format = st.selectbox(
                 "Format", 
                 ["CSV (.csv)", "Text File (.txt)"],
@@ -1637,24 +1662,8 @@ def render_sidebar():
                         use_container_width=True
                     )
             
-            st.divider()
-        
-        # Load new data button
-        if data_loaded:
-            if st.button("Load New Data", use_container_width=True):
-                st.session_state.data = None
-                st.session_state.data_loaded = False
-                st.session_state.download_info = {}
-                st.session_state.upload_info = {}
-                st.rerun()
-            
-            # Show current data info
-            if info:
-                st.caption(
-                    f"MMS{info.get('probe', '?')} {info.get('instrument', '')} "
-                    f"{info.get('coord', '')} ({info.get('data_rate', '')}/{info.get('level', '')})"
-                )
-    
+            # No bottom divider
+
     return analysis_mode, subsample_pts
 
 
@@ -1930,15 +1939,15 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
             st.markdown("**Fit 1 (Red)**")
             c1, c2 = st.columns(2)
             with c1:
-                fit1_fmin = st.number_input(
-                    "f₁ min [Hz]", min_value=f_min_data, max_value=f_max_data,
-                    value=default_fit1_fmin, format="%.4f", step=0.0,
+                fit1_fmin_str = st.text_input(
+                    "f₁ min [Hz]",
+                    value=f"{default_fit1_fmin:.4f}",
                     key="psd_fit1_fmin_input"
                 )
             with c2:
-                fit1_fmax = st.number_input(
-                    "f₁ max [Hz]", min_value=f_min_data, max_value=f_max_data,
-                    value=default_fit1_fmax, format="%.4f", step=0.0,
+                fit1_fmax_str = st.text_input(
+                    "f₁ max [Hz]",
+                    value=f"{default_fit1_fmax:.4f}",
                     key="psd_fit1_fmax_input"
                 )
             target_alpha1 = None
@@ -1948,19 +1957,19 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                 st.markdown("**Fit 2 (Green)**")
                 c3, c4 = st.columns(2)
                 with c3:
-                    fit2_fmin = st.number_input(
-                        "f₂ min [Hz]", min_value=f_min_data, max_value=f_max_data,
-                        value=default_fit2_fmin, format="%.4f", step=0.0,
+                    fit2_fmin_str = st.text_input(
+                        "f₂ min [Hz]",
+                        value=f"{default_fit2_fmin:.4f}",
                         key="psd_fit2_fmin_input"
                     )
                 with c4:
-                    fit2_fmax = st.number_input(
-                        "f₂ max [Hz]", min_value=f_min_data, max_value=f_max_data,
-                        value=default_fit2_fmax, format="%.4f", step=0.0,
+                    fit2_fmax_str = st.text_input(
+                        "f₂ max [Hz]",
+                        value=f"{default_fit2_fmax:.4f}",
                         key="psd_fit2_fmax_input"
                     )
             else:
-                fit2_fmin, fit2_fmax = default_fit2_fmin, default_fit2_fmax
+                fit2_fmin_str, fit2_fmax_str = f"{default_fit2_fmin:.4f}", f"{default_fit2_fmax:.4f}"
                 
         else:
             # --- TARGET SPECTRAL INDEX MODE ---
@@ -1993,6 +2002,17 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                 target_alpha2 = None
         
         submitted = st.form_submit_button("Update Plot", use_container_width=True, type="primary")
+
+    def _parse_float_in_range(val_str: str, min_val: float, max_val: float, label: str):
+        try:
+            val = float(val_str)
+        except Exception:
+            st.error(f"⚠️ {label} must be a valid number")
+            return None
+        if val < min_val or val > max_val:
+            st.error(f"⚠️ {label} must be between {min_val:.4f} and {max_val:.4f} Hz")
+            return None
+        return val
     
     # =========================================================================
     # PLOTTING (always render - auto-load on page open)
@@ -2002,10 +2022,13 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     
     # Compute Fit 1 range
     if fit_mode == "Manual Range":
-        if fit1_fmin >= fit1_fmax:
-            st.error("⚠️ f₁ min must be < f₁ max")
-        else:
-            fit1_range = (fit1_fmin, fit1_fmax)
+        fit1_fmin = _parse_float_in_range(fit1_fmin_str, f_min_data, f_max_data, "f₁ min")
+        fit1_fmax = _parse_float_in_range(fit1_fmax_str, f_min_data, f_max_data, "f₁ max")
+        if fit1_fmin is not None and fit1_fmax is not None:
+            if fit1_fmin >= fit1_fmax:
+                st.error("⚠️ f₁ min must be < f₁ max")
+            else:
+                fit1_range = (fit1_fmin, fit1_fmax)
     else:
         try:
             f1_min, f1_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha1)
@@ -2016,10 +2039,13 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     # Compute Fit 2 range (if enabled)
     if enable_dual_fit:
         if fit_mode == "Manual Range":
-            if fit2_fmin >= fit2_fmax:
-                st.error("⚠️ f₂ min must be < f₂ max")
-            else:
-                fit2_range = (fit2_fmin, fit2_fmax)
+            fit2_fmin = _parse_float_in_range(fit2_fmin_str, f_min_data, f_max_data, "f₂ min")
+            fit2_fmax = _parse_float_in_range(fit2_fmax_str, f_min_data, f_max_data, "f₂ max")
+            if fit2_fmin is not None and fit2_fmax is not None:
+                if fit2_fmin >= fit2_fmax:
+                    st.error("⚠️ f₂ min must be < f₂ max")
+                else:
+                    fit2_range = (fit2_fmin, fit2_fmax)
         else:
             try:
                 f2_min, f2_max, _ = find_target_alpha_range(psd.frequencies, psd.power, target_alpha2)
@@ -2028,7 +2054,7 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                 st.error(f"Fit 2 range error: {e}")
     
     # Plot
-    st.subheader(f"{selected_key} — {selected_col}")
+    st.caption("💡 **Tip:** Click legend items to show/hide • Drag to zoom • Double-click to reset • Toolbar in top-right for more")
     
     try:
         fig, alpha1, alpha2 = create_psd_plot(
