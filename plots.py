@@ -6,6 +6,7 @@ Plotly-based visualization with LaTeX labels for scientific publications.
 
 import numpy as np
 import plotly.graph_objects as go
+import streamlit as st
 from typing import Optional, List, Dict, Any
 
 COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
@@ -924,3 +925,105 @@ def create_stats_display(stats) -> Dict[str, Any]:
         "Samples": f"{stats.n_samples:,}",
         "NaN Count": f"{stats.n_nan:,}"
     }
+
+# ============================================================================
+# Orbit Visualization
+# ============================================================================
+
+def plot_mms_orbit_wrapper(
+    trange: List[str],
+    probes: List[str],
+    plane: str = 'xy',
+    coord: str = 'gse'
+):
+    """
+    Wrapper for pyspedas.projects.mms.mms_orbit_plot with custom styling.
+    
+    Args:
+        trange: Time range ['start', 'end']
+        probes: List of probes (e.g. ['1', '2'])
+        plane: Projection plane ('xy', 'xz', 'yz')
+        coord: Coordinate system ('gse', 'gsm', 'sm', 'geo')
+    
+    Returns:
+        matplotlib.figure.Figure: The generated orbit plot figure
+    """
+    import matplotlib.pyplot as plt
+    
+    try:
+        from pyspedas.projects.mms import mms_orbit_plot
+    except ImportError:
+        st.error("Could not import mms_orbit_plot from pyspedas.projects.mms")
+        return None
+
+    # Clear previous figures
+    plt.close('all')
+    
+    # Ensure probes are strings
+    probes_str = [str(p) for p in probes]
+    
+    try:
+        # Call the native plotter
+        # xsize/ysize control figure size in inches
+        mms_orbit_plot(
+            trange=trange,
+            probes=probes_str,
+            data_rate='srvy',
+            plane=plane,
+            coord=coord,
+            xsize=10,
+            ysize=10
+        )
+        
+        # Post-Processing for Custom Styling
+        fig = plt.gcf()
+        if not fig.axes:
+            return fig
+            
+        ax = fig.axes[0]
+        
+        # 1. Aspect Ratio & Limits
+        # "Figure should be a square": Force the Axes Box to be square.
+        ax.set_box_aspect(1)
+        # "Orbits should fit properly": Use 'equal' aspect with 'datalim' adjustment.
+        # This expands the data limits to fill the square box without distortion.
+        ax.set_aspect('equal', adjustable='datalim')
+        
+        # 2. Grid Styling
+        ax.grid(True, color='lightgrey', linestyle='--', linewidth=0.5)
+        
+        # 3. Text Cleanup: Remove "coordinates" text if present
+        texts_to_remove = []
+        for txt in ax.texts:
+            if "coordinates" in txt.get_text().lower():
+                texts_to_remove.append(txt)
+        
+        for txt in texts_to_remove:
+            txt.remove()
+            
+        # 4. Line Styling & Colors
+        # Map: MMS1: Red, MMS2: Green, MMS3: Red, MMS4: Black
+        color_map = {
+            'mms1': 'red',
+            'mms2': 'green',
+            'mms3': 'red',
+            'mms4': 'black'
+        }
+        
+        lines = ax.get_lines()
+        for line in lines:
+            # Thin lines
+            line.set_linewidth(0.5)
+            
+            # Apply custom colors
+            label = line.get_label().lower()
+            for probe_key, color in color_map.items():
+                if probe_key in label:
+                    line.set_color(color)
+                    break
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error generating orbit plot: {e}")
+        return None

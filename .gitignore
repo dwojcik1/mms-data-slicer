@@ -1,26 +1,14 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Virtual environment
 venv/
-.venv/
-env/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
+.env
 
 # Streamlit
 .streamlit/secrets.toml
 
-# Temp files
-*.tmp
-*.temp
+# Data
+pydata/
+*.cdf
+*.cef

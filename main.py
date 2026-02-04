@@ -1221,24 +1221,37 @@ def render_nasa_download_form():
         st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
         return
     
-    # Instrument selection
-    st.markdown("### Instrument Selection")
-    
-    instrument_name = st.selectbox(
-        "Select MMS Instrument",
-        list(MMS_INSTRUMENTS.keys()),
-        index=0,
-        help="FGM: Magnetic field (nT) | FPI: Plasma moments (density, velocity) | SCM: AC magnetic fluctuations | EDP: Electric field"
+    # Analysis Type Selection
+    st.markdown("### Analysis Type")
+    analysis_type = st.radio(
+        "Select Operation Mode",
+        ["Time Series Analysis", "Orbit Plots"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
-    
-    instrument_info = MMS_INSTRUMENTS[instrument_name]
-    instrument_key = instrument_info["key"]
-    is_active = instrument_info["active"]
-    instrument_desc = instrument_info.get("desc", "")
-    
-    # Display instrument description from dictionary
-    if instrument_desc:
-        st.caption(f"*{instrument_desc}*")
+
+    # Instrument selection (Only for Time Series)
+    if analysis_type == "Time Series Analysis":
+        st.markdown("### Instrument Selection")
+        
+        instrument_name = st.selectbox(
+            "Select MMS Instrument",
+            list(MMS_INSTRUMENTS.keys()),
+            index=0,
+            help="FGM: Magnetic field (nT) | FPI: Plasma moments (density, velocity) | SCM: AC magnetic fluctuations | EDP: Electric field"
+        )
+        
+        instrument_info = MMS_INSTRUMENTS[instrument_name]
+        instrument_key = instrument_info["key"]
+        is_active = instrument_info["active"]
+        instrument_desc = instrument_info.get("desc", "")
+        
+        # Display instrument description from dictionary
+        if instrument_desc:
+            st.caption(f"*{instrument_desc}*")
+    else:
+        # Default for Orbit Plots
+        instrument_key = 'fgm'
 
 
     
@@ -1286,126 +1299,172 @@ def render_nasa_download_form():
         end_time = st.time_input("End Time", value=time(12, 30))
 
     
-    # Configuration section - dynamic based on instrument
-    st.markdown("### Configuration")
     
-    # Get instrument-specific config
-    inst_config = INSTRUMENT_CONFIG.get(instrument_key, {})
-    rates = inst_config.get("rates", [])
-    levels = inst_config.get("levels", [])
-    types = inst_config.get("types", [])
-    has_coord = inst_config.get("has_coord", False)
-    coords = inst_config.get("coords", [])
-    
-    # Determine number of columns based on available options
-    col_count = 1  # Always have Probe
-    if rates: col_count += 1
-    if levels: col_count += 1
-    if types: col_count += 1
-    if has_coord and coords: col_count += 1
-    
-    cols = st.columns(col_count)
-    col_idx = 0
-    
-    # Probe (always shown)
-    with cols[col_idx]:
-        probe = st.selectbox(
-            "Probe", 
-            ['1', '2', '3', '4'], 
-            index=0,
-            help="MMS constellation spacecraft (1-4). Probes maintain ~10-160 km tetrahedron formation."
-        )
-    col_idx += 1
-    
-    # Data Rate (if available)
-    data_rate = None
-    if rates:
+    if analysis_type == "Time Series Analysis":
+        # Configuration section - dynamic based on instrument
+        st.markdown("### Configuration")
+        
+        # Get instrument-specific config
+        inst_config = INSTRUMENT_CONFIG.get(instrument_key, {})
+        rates = inst_config.get("rates", [])
+        levels = inst_config.get("levels", [])
+        types = inst_config.get("types", [])
+        has_coord = inst_config.get("has_coord", False)
+        coords = inst_config.get("coords", [])
+        
+        # Determine number of columns based on available options
+        col_count = 1  # Always have Probe
+        if rates: col_count += 1
+        if levels: col_count += 1
+        if types: col_count += 1
+        if has_coord and coords: col_count += 1
+        
+        cols = st.columns(col_count)
+        col_idx = 0
+        
+        # Probe (always shown)
         with cols[col_idx]:
-            # Build rate help text based on instrument
-            rate_help = {
-                'fgm': "SRVY: 16 Hz survey | BRST: 128 Hz burst | FAST: 8 Hz | SLOW: 0.125 Hz",
-                'fpi': "FAST: 4.5s (ions), 30ms (electrons) | BRST: 150ms (ions), 30ms (electrons)",
-                'scm': "SRVY: 32 Hz | BRST: 8192 Hz (SCB mode)",
-                'edp': "FAST: 32 Hz | BRST: 8192 Hz | SLOW: 8 Hz",
-            }.get(instrument_key, "Sampling rate mode")
-            data_rate_display = st.selectbox("Data Rate", rates, index=0, help=rate_help)
-            data_rate = data_rate_display.lower()
+            probe = st.selectbox(
+                "Probe", 
+                ['1', '2', '3', '4'], 
+                index=0,
+                help="MMS constellation spacecraft (1-4). Probes maintain ~10-160 km tetrahedron formation."
+            )
         col_idx += 1
-    
-    # Level (if available)
-    level = None
-    if levels:
-        with cols[col_idx]:
-            level_help = "L2: Science-quality calibrated data | L1B: Calibrated, uncorrected | QL: Quick-look (near real-time)"
-            level_display = st.selectbox("Level", levels, index=0, help=level_help)
-            level = level_display.lower()
-        col_idx += 1
-    
-    # Datatype (if available)
-    datatype = None
-    if types:
-        with cols[col_idx]:
-            # Build datatype help based on instrument
-            type_help = {
-                'fpi': "DIS-MOMS: Ion moments (density, velocity) | DES-MOMS: Electron moments | DIST: Distribution functions",
-                'scm': "SCSRVY: Survey AC magnetic field | SCB: Burst waveform | SCHB: High-frequency burst",
-                'edp': "DCE: DC E-field (mV/m) | DCV: Spacecraft potential | ACE: AC E-field | HMFE: High-freq E-field",
-                'eis': "EXTOF: Energetic ions (20-500 keV) | PHXTOF: Protons (10-600 keV) | ELECTRONENERGY: Electrons",
-            }.get(instrument_key, "Data product type")
-            datatype_display = st.selectbox("Datatype", types, index=0, help=type_help)
-            datatype = datatype_display.lower()
-        col_idx += 1
-    
-    # Coordinates (if available for this instrument)
-    coord = None
-    if has_coord and coords:
-        with cols[col_idx]:
-            coord_help = "GSE: Geocentric Solar Ecliptic (X→Sun) | GSM: Geocentric Solar Magnetospheric (X→Sun, Z→dipole)"
-            coord_display = st.selectbox("Coordinates", coords, index=0, help=coord_help)
-            coord = coord_display.lower()
-    
-    st.markdown("")  # Spacer
+        
+        # Data Rate (if available)
+        data_rate = None
+        if rates:
+            with cols[col_idx]:
+                # Build rate help text based on instrument
+                rate_help = {
+                    'fgm': "SRVY: 16 Hz survey | BRST: 128 Hz burst | FAST: 8 Hz | SLOW: 0.125 Hz",
+                    'fpi': "FAST: 4.5s (ions), 30ms (electrons) | BRST: 150ms (ions), 30ms (electrons)",
+                    'scm': "SRVY: 32 Hz | BRST: 8192 Hz (SCB mode)",
+                    'edp': "FAST: 32 Hz | BRST: 8192 Hz | SLOW: 8 Hz",
+                }.get(instrument_key, "Sampling rate mode")
+                data_rate_display = st.selectbox("Data Rate", rates, index=0, help=rate_help)
+                data_rate = data_rate_display.lower()
+            col_idx += 1
+        
+        # Level (if available)
+        level = None
+        if levels:
+            with cols[col_idx]:
+                level_help = "L2: Science-quality calibrated data | L1B: Calibrated, uncorrected | QL: Quick-look (near real-time)"
+                level_display = st.selectbox("Level", levels, index=0, help=level_help)
+                level = level_display.lower()
+            col_idx += 1
+        
+        # Datatype (if available)
+        datatype = None
+        if types:
+            with cols[col_idx]:
+                # Build datatype help based on instrument
+                type_help = {
+                    'fpi': "DIS-MOMS: Ion moments (density, velocity) | DES-MOMS: Electron moments | DIST: Distribution functions",
+                    'scm': "SCSRVY: Survey AC magnetic field | SCB: Burst waveform | SCHB: High-frequency burst",
+                    'edp': "DCE: DC E-field (mV/m) | DCV: Spacecraft potential | ACE: AC E-field | HMFE: High-freq E-field",
+                    'eis': "EXTOF: Energetic ions (20-500 keV) | PHXTOF: Protons (10-600 keV) | ELECTRONENERGY: Electrons",
+                }.get(instrument_key, "Data product type")
+                datatype_display = st.selectbox("Datatype", types, index=0, help=type_help)
+                datatype = datatype_display.lower()
+            col_idx += 1
+        
+        # Coordinates (if available for this instrument)
+        coord = None
+        if has_coord and coords:
+            with cols[col_idx]:
+                coord_help = "GSE: Geocentric Solar Ecliptic (X→Sun) | GSM: Geocentric Solar Magnetospheric (X→Sun, Z→dipole)"
+                coord_display = st.selectbox("Coordinates", coords, index=0, help=coord_help)
+                coord = coord_display.lower()
+        
+        st.markdown("")  # Spacer
 
-    
-    # Download button
-    if st.button(f"Load {instrument_key.upper()} Data", type="primary", use_container_width=True):
         
-        trange = format_trange(start_date, start_time, end_date, end_time)
+        # Download button
+        if st.button(f"Load {instrument_key.upper()} Data", type="primary", use_container_width=True):
+            
+            trange = format_trange(start_date, start_time, end_date, end_time)
+            
+            with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
+                try:
+                    # Import universal loader
+                    from downloader import load_mms_universal
+                    
+                    # Call universal loader with all parameters
+                    datasets = load_mms_universal(
+                        instrument=instrument_key,
+                        trange=trange,
+                        probe=probe,
+                        data_rate=data_rate if data_rate else 'srvy',
+                        level=level if level else 'l2',
+                        coord=coord if coord else 'gse',
+                        datatype=datatype if datatype else ''
+                    )
+                    
+                    st.session_state.data = datasets
+                    st.session_state.data_loaded = True
+                    st.session_state.download_info = {
+                        'probe': probe,
+                        'data_rate': data_rate if data_rate else '',
+                        'level': level if level else '',
+                        'coord': coord.upper() if coord else '',
+                        'datatype': datatype if datatype else '',
+                        'trange': trange,
+                        'instrument': instrument_key.upper()
+                    }
+                    
+                    total_pts = sum(len(v) for v in st.session_state.data.values())
+                    st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"Download failed: {e}")
+
+    elif analysis_type == "Orbit Plots":
+        # Configuration for Orbits
+        st.markdown("### Orbit Configuration")
         
-        with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
-            try:
-                # Import universal loader
-                from downloader import load_mms_universal
+        c_orb1, c_orb2 = st.columns(2)
+        with c_orb1:
+            # Lowercase options as per refactoring plan
+            plane = st.selectbox("Projection Plane", ['xy', 'xz', 'yz'], index=0, help="Plane to project the 3D orbit onto.")
+        with c_orb2:
+            # Lowercase options as per refactoring plan
+            coord_sys = st.selectbox("Coordinates", ['gse', 'gsm', 'sm', 'geo'], index=0, help="Coordinate system for position data.")
+            
+        # Default probes as integers (will be handled by wrapper or logic)
+        probes = st.multiselect("Select Probes", [1, 2, 3, 4], default=[1, 2, 3, 4], help="Select which MMS probes to plot.")
+        
+        st.markdown("") # Spacer
+        
+        if st.button("Generate Orbit Plot", type="primary", use_container_width=True):
+            if not probes:
+                st.error("Please select at least one spacecraft.")
+            else:
+                trange = format_trange(start_date, start_time, end_date, end_time)
                 
-                # Call universal loader with all parameters
-                datasets = load_mms_universal(
-                    instrument=instrument_key,
-                    trange=trange,
-                    probe=probe,
-                    data_rate=data_rate if data_rate else 'srvy',
-                    level=level if level else 'l2',
-                    coord=coord if coord else 'gse',
-                    datatype=datatype if datatype else ''
-                )
-                
-                st.session_state.data = datasets
-                st.session_state.data_loaded = True
-                st.session_state.download_info = {
-                    'probe': probe,
-                    'data_rate': data_rate if data_rate else '',
-                    'level': level if level else '',
-                    'coord': coord.upper() if coord else '',
-                    'datatype': datatype if datatype else '',
-                    'trange': trange,
-                    'instrument': instrument_key.upper()
-                }
-                
-                total_pts = sum(len(v) for v in st.session_state.data.values())
-                st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Download failed: {e}")
+                with st.spinner("Generating Orbit Plot..."):
+                    try:
+                        from plots import plot_mms_orbit_wrapper
+                        
+                        # Pass probes as comes (wrapper expects strings, but st.multiselect gives ints or strings?)
+                        # st.multiselect given options [1, 2, 3, 4] (ints) will return ints.
+                        # plot_mms_orbit_wrapper handles conversion to strings.
+                        
+                        fig = plot_mms_orbit_wrapper(
+                            trange=trange,
+                            probes=probes,
+                            plane=plane,
+                            coord=coord_sys
+                        )
+                        
+                        if fig:
+                            st.pyplot(fig)
+                            st.success("Orbit plot generated successfully!")
+                    except Exception as e:
+                        st.error(f"Orbit plot generation failed: {e}")
 
     
     # Footer disclaimer (centered)
