@@ -182,6 +182,7 @@ def _largest_contiguous_segment(
 def compute_psd_welch(
     _data: np.ndarray,
     _time_data: np.ndarray,
+    fs_override: Optional[float] = None,
     nperseg: Optional[int] = None,
     noverlap: Optional[int] = None,
     window: str = 'hann',
@@ -220,7 +221,7 @@ def compute_psd_welch(
     if len(dt_array) == 0:
         raise ValueError("Invalid time cadence.")
     dt_median = np.median(dt_array)
-    fs = 1.0 / dt_median
+    fs = fs_override if fs_override and fs_override > 0 else (1.0 / dt_median)
     
     # 3. Gap Handling: Identify continuous segments
     # Define a gap threshold (e.g., 1.5x the sampling rate)
@@ -281,6 +282,44 @@ def compute_psd_welch(
         nperseg=nperseg,
         method='welch_multi_segment'
     )
+
+
+def compute_psd_welch_mms(*args, **kwargs) -> PSDResult:
+    """
+    Alias for MMS gap-aware Welch PSD.
+    """
+    return compute_psd_welch(*args, **kwargs)
+
+
+def compute_mms_trace_psd(data_vector: np.ndarray, time: np.ndarray, kind: str = 'scalar', **kwargs) -> PSDResult:
+    """
+    Wrapper to handle Vector vs Scalar logic for MMS instruments.
+    data_vector shape should be (N, 3) for vectors or (N,) for scalars.
+    """
+    # Handle EDI specifically if many NaNs exist
+    if np.isnan(data_vector).mean() > 0.2:
+        print("Warning: High gap ratio (EDI?), consider Lomb-Scargle.")
+
+    # Case: Scalar (Density, V_sc, Magnitude)
+    if kind == 'scalar' or data_vector.ndim == 1:
+        return compute_psd_welch_mms(data_vector, time, **kwargs)
+
+    # Case: Vector (FGM, EDP, FPI Velocity) -> Trace PSD
+    if kind == 'vector' and data_vector.ndim == 2 and data_vector.shape[1] == 3:
+        psd_x = compute_psd_welch_mms(data_vector[:, 0], time, **kwargs)
+        psd_y = compute_psd_welch_mms(data_vector[:, 1], time, **kwargs)
+        psd_z = compute_psd_welch_mms(data_vector[:, 2], time, **kwargs)
+
+        total_power = psd_x.power + psd_y.power + psd_z.power
+        return PSDResult(
+            frequencies=psd_x.frequencies,
+            power=total_power,
+            sampling_frequency=psd_x.sampling_frequency,
+            nperseg=psd_x.nperseg,
+            method='welch_trace_sum'
+        )
+
+    raise ValueError("Data must be 1D array or (N,3) vector.")
 
 
 @st.cache_data(show_spinner=False)

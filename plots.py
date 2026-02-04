@@ -583,7 +583,7 @@ def create_psd_plot(
     # Store PSD data - will be added LAST so fit lines render on top
     psd_trace = go.Scattergl(
         x=frequencies, y=power, mode='lines', name='PSD',
-        line=dict(color='#000000', width=1.2),
+        line=dict(color='#000000', width=2.2),
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
     )
     
@@ -696,6 +696,7 @@ def create_psd_plot(
     # Add reference slopes AFTER PSD so they render on top when enabled
     for tr in ref_traces:
         fig.add_trace(tr)
+
     
     # Add fit lines AFTER PSD so they render ON TOP
     if fit1_result[0] is not None:
@@ -808,6 +809,14 @@ def create_psd_plot(
         
         margin=dict(l=80, r=40, t=60, b=80),
     )
+
+    # Lock x-axis range to data (prevents legend/annotations from expanding range)
+    f_pos = frequencies[frequencies > 0]
+    if len(f_pos) > 0:
+        f_min_plot = float(np.min(f_pos))
+        f_max_plot = float(np.max(f_pos))
+        if f_min_plot > 0 and f_max_plot > f_min_plot:
+            fig.update_xaxes(range=[np.log10(f_min_plot), np.log10(f_max_plot)])
     
     return fig, alpha1, alpha2
 

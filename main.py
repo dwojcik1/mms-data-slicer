@@ -578,10 +578,11 @@ body {
 # ============================================================================
 
 @st.cache_data
-def cached_psd(data_tuple, time_tuple):
+def cached_psd(data_tuple, time_tuple, fs_override: float = 0.0):
     data = np.array(data_tuple)
     time_data = np.array(time_tuple, dtype='datetime64[ns]')
-    return compute_psd_welch(data, time_data)
+    fs = fs_override if fs_override and fs_override > 0 else None
+    return compute_psd_welch(data, time_data, fs_override=fs)
 
 @st.cache_data  
 def cached_pdf(data_tuple, n_bins):
@@ -1884,20 +1885,32 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
         selected_key = st.selectbox("Dataset", dataset_keys, key="psd_dataset")
     
     df = valid_datasets[selected_key]
-    if subsample_pts:
-        df = _subsample_df(df, subsample_pts)
     columns = list(df.columns)
     
     # Variable Selection
     selected_col = st.selectbox("Variable", columns, key="psd_col")
     
     # Compute PSD (cached)
-    data = df[selected_col].values
+    df_psd = df
+    if subsample_pts and subsample_pts < len(df):
+        df_psd = _subsample_df(df, subsample_pts)
+
+    data = df_psd[selected_col].values
     clean_data = data[~np.isnan(data)]
-    time_data = df.index.values.astype('datetime64[ns]')
+    time_data = df_psd.index.values.astype('datetime64[ns]')
     
+    # Optional sampling frequency override for known MMS cadences
+    instr = (info.get('instrument', '') or '').lower()
+    rate = (info.get('data_rate', '') or '').lower()
+    fs_override = None
     try:
-        psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
+        if instr == 'fgm' and rate == 'brst':
+            fs_override = 128.0
+    except Exception:
+        fs_override = None
+
+    try:
+        psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)), fs_override or 0.0)
     except Exception as e:
         st.error(f"PSD computation failed: {e}")
         return
