@@ -189,66 +189,97 @@ def compute_psd_welch(
     scaling: str = 'density'
 ) -> PSDResult:
     """
-    Compute Power Spectral Density using Welch's method.
-    
-    Args:
-        data: 1D data array (cleaned of NaN)
-        time_data: Corresponding time array
-        nperseg: Length of each segment (default: len(data)//8)
-        noverlap: Number of points to overlap (default: nperseg//2)
-        window: Window function ('hann', 'hamming', 'blackman', etc.)
-        detrend: Detrending method ('linear', 'constant', False)
-        scaling: 'density' for PSD, 'spectrum' for power spectrum
-        
-    Returns:
-        PSDResult with frequencies and power
+    Compute PSD for MMS data, handling gaps by averaging PSDs of valid segments.
     """
-    # Clean data and time together to keep alignment
-    clean, time_clean = _clean_data_and_time(_data, _time_data)
+    # 1. Clean NaNs (Basic cleanup) and keep time aligned
+    data = np.asarray(_data).reshape(-1)
+    time_data = np.asarray(_time_data).reshape(-1)
+    n = min(len(data), len(time_data))
+    data = data[:n]
+    time_data = time_data[:n]
 
-    if len(clean) < 16:
-        raise ValueError(f"Insufficient data points after cleaning: {len(clean)}")
+    if np.issubdtype(time_data.dtype, np.datetime64):
+        time_valid = ~np.isnat(time_data)
+    else:
+        time_valid = np.isfinite(time_data.astype(float))
 
-    # If there are large gaps, use the longest contiguous segment
-    seg_slice = _largest_contiguous_segment(time_clean)
-    clean = clean[seg_slice]
-    time_clean = time_clean[seg_slice]
+    mask = np.isfinite(data) & time_valid
+    clean_data = data[mask]
+    clean_time = time_data[mask]
 
-    if len(clean) < 16:
-        raise ValueError(f"Insufficient contiguous data points: {len(clean)}")
+    if len(clean_data) < 16:
+        raise ValueError("Insufficient data points.")
 
-    # Calculate sampling frequency from cleaned time
-    fs = calculate_sampling_frequency(time_clean)
+    # 2. Robust Sampling Frequency (Median Diff)
+    # in Space Physics, always use median to ignore gaps/jitter
+    if np.issubdtype(clean_time.dtype, np.datetime64):
+        dt_array = np.diff(clean_time).astype('timedelta64[ns]').astype(float) / 1e9
+    else:
+        dt_array = np.diff(clean_time.astype(float))
+    dt_array = dt_array[dt_array > 0]
+    if len(dt_array) == 0:
+        raise ValueError("Invalid time cadence.")
+    dt_median = np.median(dt_array)
+    fs = 1.0 / dt_median
     
-    # Set default segment length
+    # 3. Gap Handling: Identify continuous segments
+    # Define a gap threshold (e.g., 1.5x the sampling rate)
+    gap_indices = np.where(dt_array > 1.5 * dt_median)[0]
+    
+    # Create slices for start/end of valid blocks
+    segment_slices = []
+    start_idx = 0
+    for gap_idx in gap_indices:
+        end_idx = gap_idx + 1  # +1 because diff is shorter by 1
+        segment_slices.append(slice(start_idx, end_idx))
+        start_idx = end_idx
+    segment_slices.append(slice(start_idx, len(clean_data)))  # Last segment
+    
+    # 4. Set nperseg based on the longest segment (or user input)
+    # We want a consistent frequency binning for all segments
     if nperseg is None:
-        nperseg = min(len(clean) // 4, 4096)
-        nperseg = max(nperseg, 64)  # Minimum segment length
+        lengths = [s.stop - s.start for s in segment_slices]
+        max_len = max(lengths)
+        nperseg = min(max_len // 4, 4096)
+        nperseg = max(nperseg, 64)  # Floor constraint
     
     if noverlap is None:
         noverlap = nperseg // 2
     
-    # Ensure nperseg doesn't exceed data length
-    nperseg = min(nperseg, len(clean))
-    noverlap = min(noverlap, nperseg - 1)
+    psd_list = []
     
-    # Compute PSD using Welch's method
-    frequencies, power = signal.welch(
-        clean,
-        fs=fs,
-        window=window,
-        nperseg=nperseg,
-        noverlap=noverlap,
-        detrend=detrend,
-        scaling=scaling
-    )
+    # 5. Compute PSD for each valid segment
+    for sl in segment_slices:
+        segment_data = clean_data[sl]
+        
+        # Skip segments shorter than nperseg
+        if len(segment_data) < nperseg:
+            continue
+        
+        freqs, p_seg = signal.welch(
+            segment_data,
+            fs=fs,
+            window=window,
+            nperseg=nperseg,
+            noverlap=noverlap,
+            detrend=detrend,
+            scaling=scaling
+        )
+        psd_list.append(p_seg)
+    
+    if not psd_list:
+        raise ValueError(f"No contiguous data segments were long enough for nperseg={nperseg}")
+    
+    # 6. Average the PSDs (weighted by number of windows could be done, but simple mean is standard)
+    # Note: signal.welch returns same freq bins if fs and nperseg are constant
+    avg_power = np.mean(psd_list, axis=0)
     
     return PSDResult(
-        frequencies=frequencies,
-        power=power,
+        frequencies=freqs,  # Frequencies are consistent across segments
+        power=avg_power,
         sampling_frequency=fs,
         nperseg=nperseg,
-        method='welch'
+        method='welch_multi_segment'
     )
 
 

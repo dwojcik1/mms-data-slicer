@@ -1524,7 +1524,7 @@ def render_sidebar():
                 pct = max(1, min(100, pct))
                 st.session_state["subsample_pct"] = pct
 
-        # Initialize percent if missing
+        # Initialize percent if missing (set before widget creation to avoid warnings)
         if "subsample_pct" not in st.session_state:
             if total_len > 0:
                 st.session_state["subsample_pct"] = int(round((safe_default / total_len) * 100))
@@ -1536,7 +1536,6 @@ def render_sidebar():
             "Subsample (%)",
             min_value=1,
             max_value=100,
-            value=st.session_state["subsample_pct"],
             step=1,
             disabled=(total_len == 0),
             key="subsample_pct",
