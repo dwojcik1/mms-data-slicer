@@ -2253,7 +2253,6 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         return
     
     # 1. UI CLEANUP: Automatically use the active dataset (first one)
-    # Removing the selector as requested
     selected_key = list(valid_datasets.keys())[0]
     
     df = valid_datasets[selected_key]
@@ -2261,174 +2260,125 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         df = _subsample_df(df, subsample_pts)
         
     columns = list(df.columns)
-    c_sel, c_empty = st.columns([1, 2])
+    
+    # Variable Selector (Top)
+    c_sel, _ = st.columns([1, 2])
     with c_sel:
         selected_col = st.selectbox("Variable", columns, key="pdf_col")
     
     data = df[selected_col].values
     clean_data = data[np.isfinite(data)]
     
-    # 2. STATISTICS PANEL (Compact Grid)
-    st.markdown("#### Statistical Summary")
-    try:
-        # Calculate stats
-        stats = cached_stats(tuple(clean_data))
-        
-        # Create 2-row grid
-        row1 = st.columns(5)
-        row2 = st.columns(5)
-        
-        # Row 1 metrics
-        row1[0].metric("Mean", f"{stats.mean:.4g}")
-        row1[1].metric("Median", f"{stats.median:.4g}")
-        row1[2].metric("Std Dev", f"{stats.std:.4g}")
-        row1[3].metric("Variance", f"{stats.variance:.4g}")
-        row1[4].metric("Skewness", f"{stats.skewness:.4f}")
-        
-        # Row 2 metrics
-        row2[0].metric("Kurtosis", f"{stats.kurtosis:.4f}")
-        row2[1].metric("Min", f"{stats.min_val:.4g}")
-        row2[2].metric("Max", f"{stats.max_val:.4g}")
-        row2[3].metric("Samples (N)", f"{stats.n_samples:,}")
-        row2[4].metric("NaNs", f"{stats.n_nan:,}")
-        
-    except Exception as e:
-        st.error(f"Statistics error: {e}")
-
-    st.markdown("---")
-
-    # 3. ADVANCED VISUALIZATION CONTROLS
-    c_bins, c_log = st.columns([1, 1])
-    bins = c_bins.slider("Bins", 20, 200, 50, key="pdf_bins")
-    logy = c_log.checkbox("Log Y", key="pdf_logy")
-
-    with st.expander("Visualization Settings", expanded=False):
-        c1, c2 = st.columns(2)
-        plot_type = c1.radio("Plot Type", ["Histogram", "KDE (PDF Line)", "Combined"], horizontal=True, index=0)
-        
-        kde_kernel = 'gaussian'
-        if plot_type in ["KDE (PDF Line)", "Combined"]:
-            kde_kernel = c2.selectbox(
-                "Kernel Type", 
-                ['gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear', 'cosine'],
-                index=0
-            )
-
-    # 4. PLOTTING LOGIC
-    try:
-        fig = go.Figure()
-        units = "nT" if 'B' in selected_col else "km/s"
-        
-        # Histogram Calculation
-        if plot_type in ["Histogram", "Combined"]:
-            # Use cached_pdf helper which typically computes histogram density
-            pdf_res = get_pdf_cached(tuple(clean_data), bins)
+    # --- SPLIT LAYOUT ---
+    c_left, c_right = st.columns([2, 1])
+    
+    # === LEFT: VISUALIZATION & CONTROLS ===
+    with c_left:
+        with st.container(border=True):
+            st.markdown("##### Visualization Settings")
             
-            bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
+            # Controls Row 1
+            c_bins, c_log = st.columns([2, 1])
+            bins = c_bins.slider("Bins", 20, 200, 50, key="pdf_bins")
+            logy = c_log.checkbox("Log Y", key="pdf_logy")
+
+            # Controls Row 2 (Plot Type & Kernel)
+            c_type, c_kernel = st.columns([1.5, 1])
+            plot_type = c_type.radio("Plot Type", ["Histogram", "KDE (PDF Line)", "Combined"], horizontal=True, key="pdf_type")
             
-            fig.add_trace(go.Bar(
-                x=pdf_res.bin_centers, 
-                y=pdf_res.density,
-                name='Histogram',
-                marker_color='#1f77b4',
-                opacity=0.7 if plot_type == "Combined" else 1.0,
-                width=bin_width * 0.9  # Mild formatting
-            ))
+            kde_kernel = 'gaussian'
+            if plot_type in ["KDE (PDF Line)", "Combined"]:
+                kde_kernel = c_kernel.selectbox(
+                    "Kernel Type", 
+                    ['gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear', 'cosine'],
+                    key="pdf_kernel"
+                )
+        
+        # Plotting Logic
+        try:
+            fig = go.Figure()
+            units = "nT" if 'B' in selected_col else "km/s"
             
-        # KDE Calculation
-        if plot_type in ["KDE (PDF Line)", "Combined"]:
-            kde_x, kde_y = compute_kde(clean_data, kernel=kde_kernel, n_points=500)
-            
-            if len(kde_x) > 0:
-                fig.add_trace(go.Scatter(
-                    x=kde_x,
-                    y=kde_y,
-                    mode='lines',
-                    name=f'KDE ({kde_kernel})',
-                    line=dict(color='#d62728', width=2.5)
+            # Histogram Calculation
+            if plot_type in ["Histogram", "Combined"]:
+                pdf_res = get_pdf_cached(tuple(clean_data), bins)
+                bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
+                
+                fig.add_trace(go.Bar(
+                    x=pdf_res.bin_centers, 
+                    y=pdf_res.density,
+                    name='Histogram',
+                    marker_color='#1f77b4',
+                    opacity=0.7 if plot_type == "Combined" else 1.0,
+                    width=bin_width * 0.9
                 ))
+                
+            # KDE Calculation
+            if plot_type in ["KDE (PDF Line)", "Combined"]:
+                kde_x, kde_y = compute_kde(clean_data, kernel=kde_kernel, n_points=500)
+                if len(kde_x) > 0:
+                    fig.add_trace(go.Scatter(
+                        x=kde_x, y=kde_y, mode='lines', name=f'KDE ({kde_kernel})',
+                        line=dict(color='#d62728', width=2.5)
+                    ))
+    
+            # Styles matches TS/PSD
+            fig.update_layout(
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(color='black', family='Arial, sans-serif'),
+                title=None,
+                xaxis_title=dict(text=f"{selected_col} [{units}]", font=dict(size=16, color='black')),
+                yaxis_title=dict(text="Probability Density", font=dict(size=16, color='black')),
+                height=550, # Slightly smaller to fit layout
+                hovermode='x unified',
+                showlegend=True,
+                legend=dict(
+                    orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1,
+                    bgcolor='rgba(255,255,255,0.95)', bordercolor='rgba(0,0,0,0.3)', borderwidth=1,
+                    font=dict(size=14, color='black')
+                ),
+                margin=dict(l=70, r=40, t=20, b=60),
+            )
+            
+            grid_color = '#E5E5E5'
+            fig.update_xaxes(showgrid=True, gridcolor=grid_color, gridwidth=1, tickfont=dict(size=13, color='black'), showline=True, linewidth=1, linecolor='black', mirror=True)
+            fig.update_yaxes(showgrid=True, gridcolor=grid_color, gridwidth=1, tickfont=dict(size=13, color='black'), showline=True, linewidth=1, linecolor='black', mirror=True, zeroline=True)
+            
+            if logy:
+                fig.update_yaxes(type="log")
+                
+            st.plotly_chart(fig, use_container_width=True, config={'editable': False, 'displayModeBar': True})
+            
+        except Exception as e:
+            st.error(f"Plotting error: {e}")
 
-        # Styling (Square Aspect Ratio + TS/PSD Match)
-        fig.update_layout(
-            # Force white background for visibility and clean export
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            font=dict(color='black', family='Arial, sans-serif'),
-            
-            title=None,
-            
-            # Axis titles
-            xaxis_title=dict(
-                text=f"{selected_col} [{units}]",
-                font=dict(size=16, color='black')
-            ),
-            yaxis_title=dict(
-                text="Probability Density",
-                font=dict(size=16, color='black')
-            ),
-            
-            width=600,
-            height=600,
-            hovermode='x unified',
-            
-            # Legend inside plot
-            showlegend=True,
-            legend=dict(
-                orientation='h',
-                yanchor='bottom',
-                y=1.02,
-                xanchor='right',
-                x=1,
-                bgcolor='rgba(255,255,255,0.95)',
-                bordercolor='rgba(0,0,0,0.3)',
-                borderwidth=1,
-                font=dict(size=14, color='black')
-            ),
-            
-            margin=dict(l=70, r=40, t=20, b=60),
-        )
-        
-        # Grid styling - very light grey
-        grid_color = '#E5E5E5'
-        
-        fig.update_xaxes(
-            showgrid=True,
-            gridcolor=grid_color,
-            gridwidth=1,
-            tickfont=dict(size=13, color='black'),
-            title_standoff=15,
-            showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True
-        )
-        
-        fig.update_yaxes(
-            showgrid=True,
-            gridcolor=grid_color,
-            gridwidth=1,
-            tickfont=dict(size=13, color='black'),
-            title_standoff=15,
-            zeroline=True,
-            zerolinecolor='rgba(0,0,0,0.3)',
-            zerolinewidth=1.5,
-            showline=True,
-            linewidth=1,
-            linecolor='black',
-            mirror=True
-        )
-        
-        if logy:
-            fig.update_yaxes(type="log")
-            
-        st.plotly_chart(
-            fig, 
-            use_container_width=False, 
-            config={'editable': False, 'displayModeBar': True}
-        )
-        
-    except Exception as e:
-        st.error(f"Plotting error: {e}")
+    # === RIGHT: STATISTICAL SUMMARY ===
+    with c_right:
+        with st.container(border=True):
+            st.markdown("#### Statistical Summary")
+            try:
+                stats = cached_stats(tuple(clean_data))
+                
+                # 2 Columns x 5 Rows
+                sc1, sc2 = st.columns(2)
+                
+                # Column 1
+                sc1.metric("Mean", f"{stats.mean:.4g}")
+                sc1.metric("Median", f"{stats.median:.4g}")
+                sc1.metric("Std Dev", f"{stats.std:.4g}")
+                sc1.metric("Variance", f"{stats.variance:.4g}")
+                sc1.metric("Skewness", f"{stats.skewness:.4f}")
+                
+                # Column 2
+                sc2.metric("Kurtosis", f"{stats.kurtosis:.4f}")
+                sc2.metric("Min", f"{stats.min_val:.4g}")
+                sc2.metric("Max", f"{stats.max_val:.4g}")
+                sc2.metric("Samples", f"{stats.n_samples:,}")
+                sc2.metric("NaNs", f"{stats.n_nan:,}")
+                
+            except Exception as e:
+                st.error(f"Stats Error: {e}")
 
 
 def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
