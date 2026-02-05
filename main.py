@@ -2183,7 +2183,10 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     try:
         fig, alpha1, alpha2 = create_psd_plot(
             psd.frequencies, psd.power, title="",
-            psd_units=units, fit1_range=fit1_range, fit2_range=fit2_range
+            psd_units=units, 
+            fit1_range=fit1_range, fit2_range=fit2_range,
+            fit1_fixed_alpha=target_alpha1,
+            fit2_fixed_alpha=target_alpha2
         )
         st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
         
