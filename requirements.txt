@@ -50,7 +50,7 @@ pandas==2.3.3
 pillow==12.1.0
 plotly==6.5.2
 propcache==0.4.1
-protobuf==6.33.4
+protobuf==6.33.5
 pyarrow==23.0.0
 pydeck==0.9.1
 pyerfa==2.0.1.5
