@@ -1424,13 +1424,13 @@ def render_nasa_download_form():
                 except Exception as e:
                     st.error(f"Download failed: {e}")
             
-            # Disclaimer Note (Time Series)
-            st.markdown(
-                "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
-                "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
-                "</div>",
-                unsafe_allow_html=True
-            )
+        # Disclaimer Note (Time Series)
+        st.markdown(
+            "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
+            "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
     elif analysis_type == "Orbit Plots":
         # Configuration for Orbits
@@ -1476,13 +1476,13 @@ def render_nasa_download_form():
                     except Exception as e:
                         st.error(f"Orbit plot generation failed: {e}")
             
-            # Disclaimer Note (Orbit Plots)
-            st.markdown(
-                "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
-                "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
-                "</div>",
-                unsafe_allow_html=True
-            )
+        # Disclaimer Note (Orbit Plots)
+        st.markdown(
+            "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
+            "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
     
     # Footer disclaimer (centered) - removed as requested
