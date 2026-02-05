@@ -1024,6 +1024,7 @@ def plot_mms_orbit_wrapper(
             # Styling based on user feedback:
             # - Markers along the line (marker='x', markevery)
             # - Thinner lines but clear markers
+            # Z-order 12 to be ON TOP of Earth image (Z=10)
             ax.plot(
                 x_plot, y_plot,
                 label=f'MMS{probe_id}',
@@ -1031,13 +1032,14 @@ def plot_mms_orbit_wrapper(
                 linewidth=1.0,      # Slightly thicker than 0.5 for visibility
                 marker='x',         # Markers as seen in target image
                 markevery=20,       # Regular intervals
-                markersize=4
+                markersize=4,
+                zorder=12
             )
             
             # Add Start/End markers (Optional, keeping for clarity but making subtle)
             if len(x_plot) > 0:
-                 ax.scatter(x_plot.iloc[0], y_plot.iloc[0], marker='o', color=color, s=30, zorder=5) # Start
-                 ax.scatter(x_plot.iloc[-1], y_plot.iloc[-1], marker='s', color=color, s=30, zorder=5) # End
+                 ax.scatter(x_plot.iloc[0], y_plot.iloc[0], marker='o', color=color, s=30, zorder=13) # Start
+                 ax.scatter(x_plot.iloc[-1], y_plot.iloc[-1], marker='s', color=color, s=30, zorder=13) # End
 
         except Exception as e:
             # Log warning but continue with other probes
@@ -1097,4 +1099,7 @@ def plot_mms_orbit_wrapper(
     if ax.get_legend_handles_labels()[0]:
         ax.legend(loc='upper right', frameon=True, fontsize=12, markerscale=1.5)
         
+    # Final Autoscale to ensure lines are seen despite Image
+    ax.autoscale(True)
+    
     return fig
