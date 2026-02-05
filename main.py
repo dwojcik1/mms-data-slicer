@@ -2238,6 +2238,10 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
 def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
     """Render PDF & Moments analysis."""
     import pandas as pd
+    import plotly.graph_objects as go
+    # Ensure physics functions are available
+    from physics import cached_pdf, cached_stats, compute_kde
+    
     st.markdown("### PDF & Moments")
     
     # Filter to only include DataFrames (not CDFLoader objects)
@@ -2248,41 +2252,127 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         st.warning("No valid data available for PDF analysis. Please load data first.")
         return
     
-    dataset_keys = list(valid_datasets.keys())
-    selected_key = st.selectbox("Dataset", dataset_keys, key="pdf_dataset")
+    # 1. UI CLEANUP: Automatically use the active dataset (first one)
+    # Removing the selector as requested
+    selected_key = list(valid_datasets.keys())[0]
     
     df = valid_datasets[selected_key]
     if subsample_pts:
         df = _subsample_df(df, subsample_pts)
+        
     columns = list(df.columns)
-    selected_col = st.selectbox("Variable", columns, key="pdf_col")
+    c_sel, c_empty = st.columns([1, 2])
+    with c_sel:
+        selected_col = st.selectbox("Variable", columns, key="pdf_col")
     
     data = df[selected_col].values
-    clean_data = data[~np.isnan(data)]
+    clean_data = data[np.isfinite(data)]
     
-    c1, c2 = st.columns([3, 1])
-    bins = c1.slider("Bins", 20, 200, 50, key="pdf_bins")
-    logy = c2.checkbox("Log Y", key="pdf_logy")
-    
-    cp, cs = st.columns([2, 1])
-    
-    with cp:
-        try:
-            pdf = cached_pdf(tuple(clean_data), bins)
-            units = "nT" if 'B' in selected_col else "km/s"
-            fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} ({units})", log_y=logy)
-            st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(str(e))
-    
-    with cs:
-        st.markdown("##### Statistics")
-        try:
-            stats = cached_stats(tuple(clean_data))
-            for n, v in create_stats_display(stats).items():
-                st.metric(n, v)
-        except Exception as e:
-            st.error(str(e))
+    # 2. STATISTICS PANEL (Compact Grid)
+    st.markdown("#### Statistical Summary")
+    try:
+        # Calculate stats
+        stats = cached_stats(tuple(clean_data))
+        
+        # Create 2-row grid
+        row1 = st.columns(5)
+        row2 = st.columns(5)
+        
+        # Row 1 metrics
+        row1[0].metric("Mean", f"{stats.mean:.4g}")
+        row1[1].metric("Median", f"{stats.median:.4g}")
+        row1[2].metric("Std Dev", f"{stats.std:.4g}")
+        row1[3].metric("Variance", f"{stats.variance:.4g}")
+        row1[4].metric("Skewness", f"{stats.skewness:.4f}")
+        
+        # Row 2 metrics
+        row2[0].metric("Kurtosis", f"{stats.kurtosis:.4f}")
+        row2[1].metric("Min", f"{stats.min_val:.4g}")
+        row2[2].metric("Max", f"{stats.max_val:.4g}")
+        row2[3].metric("Samples (N)", f"{stats.n_samples:,}")
+        row2[4].metric("NaNs", f"{stats.n_nan:,}")
+        
+    except Exception as e:
+        st.error(f"Statistics error: {e}")
+
+    st.markdown("---")
+
+    # 3. ADVANCED VISUALIZATION CONTROLS
+    c_bins, c_log = st.columns([1, 1])
+    bins = c_bins.slider("Bins", 20, 200, 50, key="pdf_bins")
+    logy = c_log.checkbox("Log Y", key="pdf_logy")
+
+    with st.expander("Visualization Settings", expanded=False):
+        c1, c2 = st.columns(2)
+        plot_type = c1.radio("Plot Type", ["Histogram", "KDE (PDF Line)", "Combined"], horizontal=True, index=0)
+        
+        kde_kernel = 'gaussian'
+        if plot_type in ["KDE (PDF Line)", "Combined"]:
+            kde_kernel = c2.selectbox(
+                "Kernel Type", 
+                ['gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear', 'cosine'],
+                index=0
+            )
+
+    # 4. PLOTTING LOGIC
+    try:
+        fig = go.Figure()
+        units = "nT" if 'B' in selected_col else "km/s"
+        
+        # Histogram Calculation
+        if plot_type in ["Histogram", "Combined"]:
+            # Use cached_pdf helper which typically computes histogram density
+            pdf_res = cached_pdf(tuple(clean_data), bins)
+            
+            bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
+            
+            fig.add_trace(go.Bar(
+                x=pdf_res.bin_centers, 
+                y=pdf_res.density,
+                name='Histogram',
+                marker_color='#1f77b4',
+                opacity=0.7 if plot_type == "Combined" else 1.0,
+                width=bin_width * 0.9  # Mild formatting
+            ))
+            
+        # KDE Calculation
+        if plot_type in ["KDE (PDF Line)", "Combined"]:
+            kde_x, kde_y = compute_kde(clean_data, kernel=kde_kernel, n_points=500)
+            
+            if len(kde_x) > 0:
+                fig.add_trace(go.Scatter(
+                    x=kde_x,
+                    y=kde_y,
+                    mode='lines',
+                    name=f'KDE ({kde_kernel})',
+                    line=dict(color='#d62728', width=2.5)
+                ))
+
+        # Styling (Square Aspect Ratio)
+        fig.update_layout(
+            title=None,
+            xaxis_title=f"{selected_col} [{units}]",
+            yaxis_title="Probability Density",
+            width=600,
+            height=600,
+            template="plotly_white",
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+        
+        if logy:
+            fig.update_yaxes(type="log")
+            
+        st.plotly_chart(fig, use_container_width=False) # Use False to enforce fixed width (Square)
+        
+    except Exception as e:
+        st.error(f"Plotting error: {e}")
 
 
 def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):

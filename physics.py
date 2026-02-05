@@ -666,3 +666,53 @@ def find_target_alpha_range(
          
     fitted_alpha, _, _ = fit_power_law(f_seg, p_seg)
     return f_valid[start_idx], f_valid[end_idx-1] if end_idx < len(f_valid) else f_valid[-1], fitted_alpha
+
+
+@st.cache_data(show_spinner=False)
+def compute_kde(
+    data: np.ndarray,
+    kernel: str = 'gaussian',
+    bandwidth: float = None,
+    n_points: int = 200
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Compute Kernel Density Estimation using sklearn.
+    
+    Args:
+        data: 1D data array
+        kernel: Kernel type ('gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear', 'cosine')
+        bandwidth: Bandwidth parameter (if None, uses Silverman's Rule)
+        n_points: Number of points for the evaluation grid
+        
+    Returns:
+        Tuple of (x_grid, density)
+    """
+    from sklearn.neighbors import KernelDensity
+    
+    data = data[np.isfinite(data)].reshape(-1, 1)
+    if len(data) == 0:
+        return np.array([]), np.array([])
+        
+    # Silverman's Rule for bandwidth if not provided
+    if bandwidth is None:
+        std_dev = np.std(data)
+        n = len(data)
+        # 1.06 * A * n^(-1/5) where A = min(std, IQR/1.34)
+        iqr = np.subtract(*np.percentile(data, [75, 25]))
+        a = min(std_dev, iqr / 1.34) if iqr > 0 else std_dev
+        bw = 1.06 * a * n ** (-0.2)
+        if bw == 0: bw = 1.0
+        bandwidth = bw
+        
+    kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data)
+    
+    min_val = data.min()
+    max_val = data.max()
+    range_val = max_val - min_val
+    margin = range_val * 0.1
+    
+    x_grid = np.linspace(min_val - margin, max_val + margin, n_points).reshape(-1, 1)
+    log_density = kde.score_samples(x_grid)
+    density = np.exp(log_density)
+    
+    return x_grid.flatten(), density
