@@ -1205,11 +1205,12 @@ def render_nasa_download_form():
     try:
         from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
         cdasws_ok = check_cdasws_available()
-    except ImportError:
+    except ImportError as e:
+        st.error(f"Import failed: {e}. Please check dependencies.")
         cdasws_ok = False
     
     if not cdasws_ok:
-        st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
+        # st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
         return
     
     # Analysis Type Selection
