@@ -669,6 +669,28 @@ def find_target_alpha_range(
 
 
 @st.cache_data(show_spinner=False)
+def cached_pdf(data_tuple: tuple, bins: int = 50) -> PDFResult:
+    """Cached wrapper for PDF computation."""
+    data = np.array(data_tuple)
+    hist, bin_edges = np.histogram(data, bins=bins, density=True)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    return PDFResult(
+        bin_centers=bin_centers,
+        density=hist,
+        bin_edges=bin_edges,
+        n_samples=len(data),
+        n_bins=bins
+    )
+
+
+@st.cache_data(show_spinner=False)
+def cached_stats(data_tuple: tuple) -> StatisticsResult:
+    """Cached wrapper for statistics."""
+    data = np.array(data_tuple)
+    return compute_statistics(data)
+
+
+@st.cache_data(show_spinner=False)
 def compute_kde(
     data: np.ndarray,
     kernel: str = 'gaussian',
