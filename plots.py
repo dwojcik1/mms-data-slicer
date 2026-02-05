@@ -430,7 +430,6 @@ def plot_time_series(df, meta, title=None):
         meta: Dict with keys 'label', 'unit', 'type'
               example: {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
     """
-    """
     import plotly.graph_objects as go
     fig = go.Figure()
 
@@ -835,6 +834,7 @@ def create_pdf_plot(
     height=400
 ):
     """Create publication-quality PDF histogram plot with optional Gaussian overlay."""
+    import plotly.graph_objects as go
     fig = go.Figure()
     
     bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 1
