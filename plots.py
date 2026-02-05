@@ -937,80 +937,150 @@ def plot_mms_orbit_wrapper(
     coord: str = 'gse'
 ):
     """
-    Wrapper for pyspedas.projects.mms.mms_orbit_plot with custom styling.
+    Generate MMS Orbit Plots manually using standard data loaders.
+    
+    Loads MEC ephemeris data via downloader module, converts to Re,
+    and plots using matplotlib with strict styling.
     
     Args:
         trange: Time range ['start', 'end']
-        probes: List of probes (e.g. ['1', '2'])
+        probes: List of probes using strings (e.g. ['1', '2'])
         plane: Projection plane ('xy', 'xz', 'yz')
-        coord: Coordinate system ('gse', 'gsm', 'sm', 'geo')
+        coord: Coordinate system ('gse', 'gsm')
     
     Returns:
         matplotlib.figure.Figure: The generated orbit plot figure
     """
     import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+    from downloader import load_mms_universal
     
-    try:
-        from pyspedas.projects.mms import mms_orbit_plot
-    except ImportError:
-        st.error("Could not import mms_orbit_plot from pyspedas.projects.mms")
-        return None
-
-    # Clear previous figures
+    # Constants
+    RE_KM = 6371.2
+    
+    # Close existing figures
     plt.close('all')
     
-    # Ensure probes are strings
-    probes_str = [str(p) for p in probes]
+    # Create Figure and Axes
+    # Use figsize 10x10 to ensure base canvas is square
+    fig, ax = plt.subplots(figsize=(10, 10))
     
-    try:
-        # Call the native plotter
-        # xsize/ysize control figure size in inches
-        mms_orbit_plot(
-            trange=trange,
-            probes=probes_str,
-            data_rate='srvy',
-            plane=plane,
-            coord=coord,
-            xsize=10,
-            ysize=10
-        )
-        
-        # Post-Processing for Custom Styling
-        fig = plt.gcf()
-        if not fig.axes:
-            return fig
+    # Color Map
+    color_map = {
+        '1': 'red',
+        '2': 'green',
+        '3': 'red',
+        '4': 'black'
+    }
+    
+    has_data = False
+    
+    for p in probes:
+        probe_id = str(p)
+        try:
+            # Load MEC data (Ephemeris)
+            # data_rate='srvy' maps to epht89q in most cases
+            data_dict = load_mms_universal(
+                instrument='mec',
+                trange=trange,
+                probe=probe_id,
+                data_rate='srvy',
+                level='l2',
+                coord=coord,
+                datatype='epht89q'
+            )
             
-        ax = fig.axes[0]
-        
-        # 1. Aspect Ratio & Limits
-        # "Figure should be a square": Force the Axes Box to be square.
-        ax.set_box_aspect(1)
-        # "Orbits should fit properly": Use 'equal' aspect with 'datalim' adjustment.
-        # This expands the data limits to fill the square box without distortion.
-        ax.set_aspect('equal', adjustable='datalim')
-        
-        # 2. Grid Styling
-        ax.grid(True, color='lightgrey', linestyle='--', linewidth=0.5)
-        
-        # 3. Text Cleanup: Remove "coordinates" text if present
-        texts_to_remove = []
-        for txt in ax.texts:
-            if "coordinates" in txt.get_text().lower():
-                texts_to_remove.append(txt)
-        
-        for txt in texts_to_remove:
-            txt.remove()
+            if not data_dict or 'MEC' not in data_dict:
+                continue
+                
+            df = data_dict['MEC']
+            if df.empty:
+                continue
+                
+            has_data = True
             
-        # 4. Line Styling (Thickness only, defaults colors)
-        lines = ax.get_lines()
-        for line in lines:
-            # Thin lines
-            line.set_linewidth(0.5)
-        
+            # Convert to Re
+            # Unit in downloader is 'km', assuming standard MEC
+            x_re = df['X'] / RE_KM
+            y_re = df['Y'] / RE_KM
+            z_re = df['Z'] / RE_KM
+            
+            # Select Plane Data
+            if plane == 'xy':
+                x_plot, y_plot = x_re, y_re
+                xlabel, ylabel = 'X Position, Re', 'Y Position, Re'
+            elif plane == 'xz':
+                x_plot, y_plot = x_re, z_re
+                xlabel, ylabel = 'X Position, Re', 'Z Position, Re'
+            elif plane == 'yz':
+                x_plot, y_plot = y_re, z_re
+                xlabel, ylabel = 'Y Position, Re', 'Z Position, Re'
+            else:
+                st.error(f"Unknown plane: {plane}")
+                return None
+            
+            # Plot Orbit
+            color = color_map.get(probe_id, 'black')
+            # Styling based on user feedback:
+            # - Markers along the line (marker='x', markevery)
+            # - Thinner lines but clear markers
+            ax.plot(
+                x_plot, y_plot,
+                label=f'MMS{probe_id}',
+                color=color,
+                linewidth=1.0,      # Slightly thicker than 0.5 for visibility
+                marker='x',         # Markers as seen in target image
+                markevery=20,       # Regular intervals
+                markersize=4
+            )
+            
+            # Add Start/End markers (Optional, keeping for clarity but making subtle)
+            if len(x_plot) > 0:
+                 ax.scatter(x_plot.iloc[0], y_plot.iloc[0], marker='o', color=color, s=30, zorder=5) # Start
+                 ax.scatter(x_plot.iloc[-1], y_plot.iloc[-1], marker='s', color=color, s=30, zorder=5) # End
+
+        except Exception as e:
+            # Log warning but continue with other probes
+            print(f"Failed to plot MMS{probe_id}: {e}")
+            continue
+
+    if not has_data:
+        st.error("No orbit data found for selected configuration.")
         return fig
+    
+    # --- STYLING ---
+    
+    # 1. Earth Representation
+    # Improved Earth: Blue circle with white edge for visibility
+    earth = patches.Circle((0, 0), radius=1.0, facecolor='#1f77b4', edgecolor='white', linewidth=1, alpha=0.8, zorder=10)
+    ax.add_patch(earth)
+    
+    # Text annotation for Earth?
+    # ax.text(0, 0, 'Earth', color='white', ha='center', va='center', fontsize=8, fontweight='bold', zorder=11)
+    
+    # 2. Aspect Ratio & Limits
+    ax.set_box_aspect(1)
+    ax.set_aspect('equal', adjustable='datalim')
+    
+    # 3. Grid
+    ax.grid(True, color='lightgrey', linestyle='--', linewidth=0.5, alpha=0.7)
+    
+    # 4. Labels and Title
+    # Large fonts as requested (approximated from visual)
+    font_size_labels = 14
+    font_size_title = 16
+    font_size_ticks = 12
+    
+    ax.set_xlabel(xlabel, fontsize=font_size_labels)
+    ax.set_ylabel(ylabel, fontsize=font_size_labels)
+    ax.set_title(f"MMS Orbit - {plane.upper()} Plane ({coord.upper()})", fontsize=font_size_title, pad=15)
+    
+    # Tick formatting
+    ax.tick_params(axis='both', which='major', labelsize=font_size_ticks)
+    
+    # 5. Legend
+    # Only if data exists
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(loc='upper right', frameon=True, fontsize=12, markerscale=1.5)
         
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error generating orbit plot: {e}")
-        return None
+    return fig

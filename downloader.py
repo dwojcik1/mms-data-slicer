@@ -605,7 +605,7 @@ INSTRUMENT_DATASET_MAP = {
     'mec': {
         # Variable: mms1_mec_r_gsm (MEC has r and v for position and velocity)
         'dataset': 'MMS{p}_MEC_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_mec_r_gsm', 'mms{p}_mec_r_gse', 'mms{p}_mec_v_gsm'],
+        'var_patterns': ['mms{p}_mec_r_{c}'],
         'columns': ['X', 'Y', 'Z'],
         'units': 'km',
         'type': 'vector'
