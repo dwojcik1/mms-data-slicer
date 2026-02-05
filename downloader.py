@@ -132,8 +132,8 @@ def load_fgm_cdasws(
                 except:
                     continue
             
-            # Convert epoch to datetime
-            times = cdflib.cdfepoch.to_datetime(epoch_data)
+            # Convert epoch to datetime - use encode for safe TT2000 conversion (returns ISO strings)
+            times = cdflib.cdfepoch.encode(epoch_data)
             
             # Filter to requested time range
             times_np = np.array(times, dtype='datetime64[ns]')
@@ -435,8 +435,8 @@ def load_fpi_cdasws(
                 except:
                     continue
                 
-                # Convert epoch to datetime
-                times = cdflib.cdfepoch.to_datetime(epoch_data)
+                # Convert epoch to datetime - use encode for safe TT2000 conversion
+                times = cdflib.cdfepoch.encode(epoch_data)
                 times_np = np.array(times, dtype='datetime64[ns]')
                 start_np = np.datetime64(start_time)
                 end_np = np.datetime64(end_time)
@@ -742,8 +742,8 @@ def _download_cdf_and_extract(
             if field_data is None:
                 continue
             
-            # Convert epoch to datetime
-            times = cdflib.cdfepoch.to_datetime(epoch_data)
+            # Convert epoch to datetime - use encode for safe TT2000 conversion
+            times = cdflib.cdfepoch.encode(epoch_data)
             times_np = np.array(times, dtype='datetime64[ns]')
             
             # Filter to time range

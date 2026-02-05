@@ -1,14 +1,10 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
+
 venv/
-.env
-
-# Streamlit
-.streamlit/secrets.toml
-
-# Data
+__pycache__/
+*.pyc
+.DS_Store
 pydata/
+.env
+.streamlit/secrets.toml
+mms_cdf_export.zip
 *.cdf
-*.cef

@@ -4,9 +4,6 @@ plots.py - Publication-Quality Visualization Module
 Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
@@ -430,7 +427,7 @@ def plot_time_series(df, meta, title=None):
     Args:
         df: DataFrame (index=Epoch)
         meta: Dict with keys 'label', 'unit', 'type'
-              example: {'label': r"$\\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
+              example: {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
     """
     fig = go.Figure()
 
@@ -1004,26 +1001,13 @@ def plot_mms_orbit_wrapper(
         for txt in texts_to_remove:
             txt.remove()
             
-        # 4. Line Styling & Colors
-        # Map: MMS1: Red, MMS2: Green, MMS3: Red, MMS4: Black
-        color_map = {
-            'mms1': 'red',
-            'mms2': 'green',
-            'mms3': 'red',
-            'mms4': 'black'
-        }
-        
+        # 4. Line Styling (Thickness only, defaults colors)
         lines = ax.get_lines()
         for line in lines:
             # Thin lines
             line.set_linewidth(0.5)
-            
-            # Apply custom colors
-            label = line.get_label().lower()
-            for probe_key, color in color_map.items():
-                if probe_key in label:
-                    line.set_color(color)
-                    break
+        
+        return fig
         
         return fig
         
