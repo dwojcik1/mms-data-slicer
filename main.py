@@ -1461,14 +1461,10 @@ def render_nasa_download_form():
                         )
                         
                         if fig:
-                            st.session_state.orbit_fig = fig
+                            st.pyplot(fig)
                             st.success("Orbit plot generated successfully!")
                     except Exception as e:
                         st.error(f"Orbit plot generation failed: {e}")
-
-        # Display cached plot if available
-        if 'orbit_fig' in st.session_state:
-            st.pyplot(st.session_state.orbit_fig)
 
     
     # Footer disclaimer (centered)

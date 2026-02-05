@@ -930,7 +930,6 @@ def create_stats_display(stats) -> Dict[str, Any]:
 # Orbit Visualization
 # ============================================================================
 
-@st.cache_data(show_spinner=False)
 def plot_mms_orbit_wrapper(
     trange: List[str],
     probes: List[str],
