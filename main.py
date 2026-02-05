@@ -5,6 +5,15 @@ Kinetic scale time series processing for space plasma physics.
 """
 
 import streamlit as st
+import os
+
+# Configure PySPEDAS download directory to local folder for Streamlit Cloud
+# Must be set before importing pyspedas
+os.environ["SPEDAS_DATA_DIR"] = os.path.join(os.getcwd(), "pydata")
+
+import matplotlib
+matplotlib.use('Agg')
+
 import streamlit.components.v1 as components
 
 # MUST be first Streamlit command

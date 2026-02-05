@@ -4,6 +4,9 @@ plots.py - Publication-Quality Visualization Module
 Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
