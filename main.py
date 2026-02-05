@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 # MUST be first Streamlit command
 st.set_page_config(
     page_title="MMS Turbulence Laboratory",
-    page_icon="◇",
+    page_icon=":satellite:",
     layout="wide",
     initial_sidebar_state="auto"
 )
@@ -1145,32 +1145,26 @@ def render_data_loader():
 
     # Main title
     st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab ◇")
-    st.markdown("### Data Configuration ◈")
+    st.markdown("### Data Configuration")
     st.caption("Select your data source and configure the download parameters.")
     
-    # "What this app does" info box
+    # App usage summary
     st.markdown(
         """
-        <div style="
-            max-width: 100%;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 20px 24px;
-            margin: 20px 0;
-        ">
-            <div style="font-size: 1rem; font-weight: 600; color: rgba(248, 250, 252, 0.9); margin-bottom: 12px;">
-                What this app does
-            </div>
-            <ul style="list-style: none; padding: 0; margin: 0; color: rgba(248, 250, 252, 0.6); font-size: 0.9rem; line-height: 1.7;">
-                <li style="margin-bottom: 8px;">▸ Load magnetic field and plasma time series from NASA's <a href="https://mms.gsfc.nasa.gov" target="_blank" style="color: #a5b4fc;">Magnetospheric Multiscale (MMS)</a> mission via CDAWeb</li>
-                <li style="margin-bottom: 8px;">▸ Compute <strong style="color: rgba(200, 210, 255, 0.85);">Welch Power Spectral Densities</strong> with configurable windowing, segment overlap, and detrending</li>
-                <li>▸ Fit and compare <strong style="color: rgba(200, 210, 255, 0.85);">inertial- and kinetic-range spectral indices</strong> against reference slopes (Kolmogorov −5/3, kinetic −2.8)</li>
-            </ul>
+        <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+        <strong>What this app does:</strong>
+        <ul style="margin-top: 5px; margin-bottom: 0px; margin-left: -20px;">
+            <li><strong>Time Series Analysis:</strong> Analyze high-resolution plasma data (FGM, FPI, SCM, EDP). Compute Power Spectral Densities (PSD), Probability Distribution Functions (PDF), and turbulence statistics (Kurtosis, etc).</li>
+            <li><strong>Orbit Plots:</strong> Visualize the 4-spacecraft constellation trajectory in various planes (XY, XZ, YZ) and coordinates (GSE, GSM) relative to Earth.</li>
+            <li><strong>Data Access:</strong> Download science-quality data directly from NASA CDAWeb or upload local CDF files.</li>
+        </ul>
         </div>
-        """,
+        """, 
         unsafe_allow_html=True
     )
+    
+    # "What this app does" info box
+
     
     st.markdown("")  # Spacer
     
@@ -1225,13 +1219,13 @@ def render_nasa_download_form():
     st.markdown("### Analysis Type")
     analysis_type = st.radio(
         "Select Operation Mode",
-        ["Time Series Analysis", "Orbit Plots"],
+        ["📈 Time Series Analysis", "🛰️ Orbit Plots"],
         horizontal=True,
         label_visibility="collapsed"
     )
 
     # Instrument selection (Only for Time Series)
-    if analysis_type == "Time Series Analysis":
+    if "Time Series Analysis" in analysis_type:
         st.markdown("### Instrument Selection")
         
         instrument_name = st.selectbox(
@@ -1417,22 +1411,29 @@ def render_nasa_download_form():
                     
                     total_pts = sum(len(v) for v in st.session_state.data.values())
                     st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                    # Disclaimer Note moved here
+                    st.markdown(
+                       "<p style='text-align: center; opacity: 0.7; font-size: 0.85em; margin-top: 10px;'>"
+                       "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+                       "</p>",
+                       unsafe_allow_html=True
+                    )
                     st.rerun()
                     
                 except Exception as e:
                     st.error(f"Download failed: {e}")
 
-    elif analysis_type == "Orbit Plots":
+    elif "Orbit Plots" in analysis_type:
         # Configuration for Orbits
         st.markdown("### Orbit Configuration")
         
         c_orb1, c_orb2 = st.columns(2)
         with c_orb1:
             # Lowercase options as per refactoring plan
-            plane = st.selectbox("Projection Plane", ['xy', 'xz', 'yz'], index=0, help="Plane to project the 3D orbit onto.")
+            plane = st.selectbox("Projection Plane", ['XY', 'XZ', 'YZ'], index=0, help="Plane to project the 3D orbit onto.")
         with c_orb2:
             # Lowercase options as per refactoring plan
-            coord_sys = st.selectbox("Coordinates", ['gse', 'gsm', 'sm', 'geo'], index=0, help="Coordinate system for position data.")
+            coord_sys = st.selectbox("Coordinates", ['GSE', 'GSM', 'SM', 'GEO'], index=0, help="Coordinate system for position data.")
             
         # Default probes as integers (will be handled by wrapper or logic)
         probes = st.multiselect("Select Probes", [1, 2, 3, 4], default=[1, 2, 3, 4], help="Select which MMS probes to plot.")
@@ -1456,8 +1457,8 @@ def render_nasa_download_form():
                         fig = plot_mms_orbit_wrapper(
                             trange=trange,
                             probes=probes,
-                            plane=plane,
-                            coord=coord_sys
+                            plane=plane.lower(),
+                            coord=coord_sys.lower()
                         )
                         
                         if fig:
@@ -1469,18 +1470,12 @@ def render_nasa_download_form():
     
     # Footer disclaimer (centered)
     st.markdown("---")
-    st.markdown(
-        "<p style='text-align: center; opacity: 0.7; font-size: 0.85em;'>"
-        "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
-        "</p>",
-        unsafe_allow_html=True
-    )
 
 
 def render_upload_form():
     """Render the CDF file upload form."""
     
-    st.markdown("### ▢ Upload CDF File")
+    st.markdown("### Upload CDF File")
     
     uploaded_file = st.file_uploader(
         "Drop your .CDF file here",
