@@ -969,7 +969,7 @@ def plot_mms_orbit_wrapper(
     color_map = {
         '1': 'red',
         '2': 'green',
-        '3': 'red',
+        '3': 'blue',
         '4': 'black'
     }
     
@@ -1051,9 +1051,23 @@ def plot_mms_orbit_wrapper(
     # --- STYLING ---
     
     # 1. Earth Representation
-    # Improved Earth: Blue circle with white edge for visibility
-    earth = patches.Circle((0, 0), radius=1.0, facecolor='#1f77b4', edgecolor='white', linewidth=1, alpha=0.8, zorder=10)
-    ax.add_patch(earth)
+    try:
+        import matplotlib.image as mpimg
+        import os
+        # Load earth image
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        earth_path = os.path.join(current_dir, 'assets', 'earth.png')
+        if os.path.exists(earth_path):
+            img = mpimg.imread(earth_path)
+            # Display centered at 0,0 with radius 1 (Extent includes -1 to 1 in both axis)
+            ax.imshow(img, extent=[-1, 1, -1, 1], zorder=10)
+        else:
+            raise FileNotFoundError("Asset not found")
+    except Exception as e:
+        # Fallback to simple circle
+        print(f"Warning: Could not load earth image: {e}")
+        earth = patches.Circle((0, 0), radius=1.0, facecolor='#1f77b4', edgecolor='white', linewidth=1, alpha=0.8, zorder=10)
+        ax.add_patch(earth)
     
     # Text annotation for Earth?
     # ax.text(0, 0, 'Earth', color='white', ha='center', va='center', fontsize=8, fontweight='bold', zorder=11)
