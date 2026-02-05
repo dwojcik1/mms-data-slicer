@@ -2240,7 +2240,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
     import pandas as pd
     import plotly.graph_objects as go
     # Ensure physics functions are available
-    from physics import cached_pdf, cached_stats, compute_kde
+    from physics import get_pdf_cached, cached_stats, compute_kde
     
     st.markdown("### PDF & Moments")
     
@@ -2322,7 +2322,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         # Histogram Calculation
         if plot_type in ["Histogram", "Combined"]:
             # Use cached_pdf helper which typically computes histogram density
-            pdf_res = cached_pdf(tuple(clean_data), bins)
+            pdf_res = get_pdf_cached(tuple(clean_data), bins)
             
             bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
             

@@ -669,7 +669,7 @@ def find_target_alpha_range(
 
 
 @st.cache_data(show_spinner=False)
-def cached_pdf(data_tuple: tuple, bins: int = 50) -> PDFResult:
+def get_pdf_cached(data_tuple: tuple, bins: int = 50) -> PDFResult:
     """Cached wrapper for PDF computation."""
     data = np.array(data_tuple)
     hist, bin_edges = np.histogram(data, bins=bins, density=True)
