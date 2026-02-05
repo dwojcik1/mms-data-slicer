@@ -630,7 +630,8 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
     if mode == "Time Series":
         with st.sidebar.expander("Settings", expanded=True):
             sub = st.checkbox("Subsample", value=True, key="multi_sub")
-            pts = st.slider("Points", 1000, 50000, 15000, key="multi_pts") if sub else 999999
+            # Default to 10000 (heuristic 20% of 50k max)
+            pts = st.slider("Points", 1000, 50000, 10000, key="multi_pts") if sub else 999999
         
         # Iterate through each dataset
         for key, df in datasets.items():
@@ -856,7 +857,10 @@ def render_dataframe_analysis(df, time_data):
         
         with st.sidebar.expander("Settings", expanded=True):
             sub = st.checkbox("Subsample", value=True, key="df_sub")
-            pts = st.slider("Points", 1000, 50000, 15000, key="df_pts") if sub else len(df)
+            # Default to 20% of data length, clamped between 1000 and 50000
+            default_pts = int(len(df) * 0.2)
+            default_pts = max(1000, min(50000, default_pts))
+            pts = st.slider("Points", 1000, 50000, default_pts, key="df_pts") if sub else len(df)
         
         # Subsample if needed
         if sub and len(df) > pts:
@@ -1577,7 +1581,9 @@ def render_sidebar():
 
         # Single number input for subsample control
         min_pts = 100  # Allow smaller datasets
-        safe_default = max(min_pts, min(default_pts, max_pts))
+        # Calculate safe default based on requested 20%
+        target_default_pts = int(total_len * 0.20) if total_len > 0 else 15000
+        safe_default = max(min_pts, min(target_default_pts, max_pts))
 
         # Sync callbacks between percent slider and absolute points
         def _update_pts_from_pct():
