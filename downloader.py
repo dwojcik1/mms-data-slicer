@@ -213,6 +213,8 @@ def load_fgm_cdasws(
         loop.close()
     
     # Collect valid results
+    all_times = []
+    all_values = []
     for res in results:
         if res:
             all_times.append(res[0])
