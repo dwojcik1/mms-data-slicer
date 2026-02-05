@@ -32,30 +32,6 @@ from physics import compute_psd_welch, compute_pdf, compute_statistics
 from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG
 
 # ============================================================================
-# Session State Initialization
-# ============================================================================
-def init_session_state():
-    """Initialize session state variables with defaults."""
-    import datetime
-    defaults = {
-        "analysis_type": "Time Series Analysis",
-        "start_date": datetime.date(2015, 9, 1),
-        "start_time": datetime.time(0, 0),
-        "end_date": datetime.date(2015, 9, 1),
-        "end_time": datetime.time(23, 59),
-        "selected_instrument": "Fluxgate Magnetometer (FGM)",
-        "orbit_plane": "XY",
-        "orbit_coord": "GSE",
-        "orbit_probes": [1, 2, 3, 4]
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-# Initialize State immediately
-init_session_state()
-
-# ============================================================================
 # Utilities
 # ============================================================================
 
@@ -1244,7 +1220,7 @@ def render_nasa_download_form():
             "Select Operation Mode",
             ["Time Series Analysis", "Orbit Plots"],
             selection_mode="single",
-            key="analysis_type"
+            default="Time Series Analysis"
         )
         if not analysis_type: analysis_type = "Time Series Analysis"
     except AttributeError:
@@ -1253,8 +1229,7 @@ def render_nasa_download_form():
             "Select Operation Mode",
             ["Time Series Analysis", "Orbit Plots"],
             horizontal=True,
-            label_visibility="collapsed",
-            key="analysis_type"
+            label_visibility="collapsed"
         )
 
     # Instrument selection (Only for Time Series)
@@ -1264,7 +1239,7 @@ def render_nasa_download_form():
         instrument_name = st.selectbox(
             "Select MMS Instrument",
             list(MMS_INSTRUMENTS.keys()),
-            key="selected_instrument",
+            index=0,
             help="FGM: Magnetic field (nT) | FPI: Plasma moments (density, velocity) | SCM: AC magnetic fluctuations | EDP: Electric field"
         )
         
@@ -1317,13 +1292,13 @@ def render_nasa_download_form():
     
     t1, t2, t3, t4 = st.columns(4)
     with t1:
-        start_date = st.date_input("Start Date", min_value=mms_min_date, max_value=mms_max_date, key="start_date")
+        start_date = st.date_input("Start Date", value=default_start, min_value=mms_min_date, max_value=mms_max_date)
     with t2:
-        start_time = st.time_input("Start Time", key="start_time")
+        start_time = st.time_input("Start Time", value=time(12, 0))
     with t3:
-        end_date = st.date_input("End Date", min_value=mms_min_date, max_value=mms_max_date, key="end_date")
+        end_date = st.date_input("End Date", value=default_end, min_value=mms_min_date, max_value=mms_max_date)
     with t4:
-        end_time = st.time_input("End Time", key="end_time")
+        end_time = st.time_input("End Time", value=time(12, 30))
 
     
     
@@ -1464,13 +1439,13 @@ def render_nasa_download_form():
         c_orb1, c_orb2 = st.columns(2)
         with c_orb1:
             # Uppercase options
-            plane = st.selectbox("Projection Plane", ['XY', 'XZ', 'YZ'], key="orbit_plane", help="Plane to project the 3D orbit onto.")
+            plane = st.selectbox("Projection Plane", ['XY', 'XZ', 'YZ'], index=0, help="Plane to project the 3D orbit onto.")
         with c_orb2:
             # Uppercase options
-            coord_sys = st.selectbox("Coordinates", ['GSE', 'GSM', 'SM', 'GEO'], key="orbit_coord", help="Coordinate system for position data.")
+            coord_sys = st.selectbox("Coordinates", ['GSE', 'GSM', 'SM', 'GEO'], index=0, help="Coordinate system for position data.")
             
         # Default probes as integers (will be handled by wrapper or logic)
-        probes = st.multiselect("Select Probes", [1, 2, 3, 4], key="orbit_probes", help="Select which MMS probes to plot.")
+        probes = st.multiselect("Select Probes", [1, 2, 3, 4], default=[1, 2, 3, 4], help="Select which MMS probes to plot.")
         
         st.markdown("") # Spacer
         
@@ -1624,9 +1599,13 @@ def render_sidebar():
         # Initialize percent if missing (set before widget creation to avoid warnings)
         if "subsample_pct" not in st.session_state:
             if total_len > 0:
-                st.session_state["subsample_pct"] = int(round((safe_default / total_len) * 100))
+                # Default to 20% or calculated, user asked for 20%.
+                # The logic below calculated percentage based on safe_default. 
+                # If safe_default is 10000 and total 100000, then 10%.
+                # User wants 20% default.
+                st.session_state["subsample_pct"] = 20
             else:
-                st.session_state["subsample_pct"] = 30
+                st.session_state["subsample_pct"] = 20
 
         # Percent slider control
         st.slider(
