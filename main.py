@@ -2369,7 +2369,11 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         if logy:
             fig.update_yaxes(type="log")
             
-        st.plotly_chart(fig, use_container_width=False) # Use False to enforce fixed width (Square)
+        st.plotly_chart(
+            fig, 
+            use_container_width=False, 
+            config={'editable': False, 'displayModeBar': True}
+        )
         
     except Exception as e:
         st.error(f"Plotting error: {e}")
