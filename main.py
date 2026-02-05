@@ -1954,6 +1954,7 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     from physics import find_target_alpha_range
     
     st.markdown("### Power Spectral Density")
+    st.caption("Calculated using the Welch (1967) method.")
     
     # Filter to only include DataFrames
     valid_datasets = {k: v for k, v in datasets.items() 
@@ -2177,7 +2178,7 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                 st.error(f"Fit 2 range error: {e}")
     
     # Plot
-    st.caption("💡 **Tip:** Click legend items to show/hide • Drag to zoom • Double-click to reset • Toolbar in top-right for more")
+    st.caption("💡 **Tip:** Point on the plot to see exact values • Click legend items to show/hide • Drag to zoom • Double-click to reset • Toolbar in top-right for more")
     
     try:
         fig, alpha1, alpha2 = create_psd_plot(
@@ -2212,7 +2213,23 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                         delta_color="off"
                     )
         
-        st.caption(f"Fs: {psd.sampling_frequency:.1f} Hz | Segments: {psd.nperseg} | N: {len(clean_data):,}")
+        # Metadata Footer
+        probe = info.get('probe', '?')
+        instr = info.get('instrument', 'FGM').upper()
+        coord = info.get('coords', 'GSM').upper()
+        rate = info.get('data_rate', 'srvy')
+        level = info.get('level', 'l2')
+        dataset_str = f"MMS{probe} {instr} {coord} ({rate}/{level})"
+
+        st.markdown(
+            f"<div style='font-size: 0.9em; color: #555; margin-top: 10px;'>"
+            f"<b>Dataset:</b> {dataset_str}<br>"
+            f"<b>Sampling Frequency ($F_s$):</b> {psd.sampling_frequency:.1f} Hz | "
+            f"<b>Window Size:</b> {psd.nperseg} | "
+            f"<b>Total Points ($N$):</b> {len(clean_data):,}"
+            "</div>",
+            unsafe_allow_html=True
+        )
         
     except Exception as e:
         st.error(f"Plotting error: {e}")
