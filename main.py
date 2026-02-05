@@ -29,7 +29,7 @@ from utils import (
 from physics import compute_psd_welch, compute_pdf, compute_statistics
 
 
-from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG
+from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG, PSD_CONFIG
 
 # ============================================================================
 # Utilities
@@ -2184,7 +2184,7 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
             psd.frequencies, psd.power, title="",
             psd_units=units, fit1_range=fit1_range, fit2_range=fit2_range
         )
-        st.plotly_chart(fig, use_container_width=False, config=PLOTLY_CONFIG)
+        st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
         
         # =================================================================
         # RESULTS - Clean, readable metrics
