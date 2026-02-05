@@ -5,6 +5,7 @@ Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
 import numpy as np
+import plotly.graph_objects as go
 import streamlit as st
 from typing import Optional, List, Dict, Any
 
@@ -139,7 +140,6 @@ def plot_magnetic_field(
     Returns:
         Tuple of (Figure, config_dict) for st.plotly_chart
     """
-    import plotly.graph_objects as go
     fig = go.Figure()
     
     # HTML subscript labels for legend (LaTeX unreliable in Streamlit)
@@ -314,7 +314,6 @@ def plot_velocity_field(
     Returns:
         Plotly Figure object
     """
-    import plotly.graph_objects as go
     fig = go.Figure()
     
     # HTML subscript labels for legend
@@ -430,7 +429,6 @@ def plot_time_series(df, meta, title=None):
         meta: Dict with keys 'label', 'unit', 'type'
               example: {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
     """
-    import plotly.graph_objects as go
     fig = go.Figure()
 
     # --- 1. Trace Generation ---
@@ -578,7 +576,6 @@ def create_psd_plot(
     Returns:
         Tuple of (fig, alpha1, alpha2) where alphas are fitted slopes or None
     """
-    import plotly.graph_objects as go
     fig = go.Figure()
     alpha1, alpha2 = None, None
     fit1_midpoint = None
@@ -834,7 +831,6 @@ def create_pdf_plot(
     height=400
 ):
     """Create publication-quality PDF histogram plot with optional Gaussian overlay."""
-    import plotly.graph_objects as go
     fig = go.Figure()
     
     bin_width = bin_centers[1] - bin_centers[0] if len(bin_centers) > 1 else 1

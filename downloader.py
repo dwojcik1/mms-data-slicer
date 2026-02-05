@@ -13,6 +13,7 @@ import tempfile
 import os
 import streamlit as st
 import zipfile
+import concurrent.futures
 from typing import Dict, Any, Tuple
 
 
@@ -80,14 +81,15 @@ def load_fgm_cdasws(
         raise ValueError(f"No data files available for {dataset}")
 
     
-    # Download and process each CDF file
+    # Download and process each CDF file in parallel
     all_times = []
     all_values = []
     
-    for file_desc in file_descriptions:
+    def process_file(file_desc):
+        """Helper to download and parse a single CDF file."""
         file_url = file_desc.get('Name')
         if not file_url:
-            continue
+            return None
         
         # Download CDF file to temp location
         import urllib.request
@@ -119,7 +121,7 @@ def load_fgm_cdasws(
                         break
             
             if epoch_data is None:
-                continue
+                return None
             
             # Get field data
             try:
@@ -130,7 +132,7 @@ def load_fgm_cdasws(
                 try:
                     field_data = cdf.varget(alt_var)
                 except:
-                    continue
+                    return None
             
             # Convert epoch to datetime - use encode for safe TT2000 conversion (returns ISO strings)
             times = cdflib.cdfepoch.encode(epoch_data)
@@ -145,15 +147,29 @@ def load_fgm_cdasws(
             values_filtered = field_data[mask]
             
             if len(times_filtered) > 0:
-                all_times.append(times_filtered)
-                all_values.append(values_filtered)
+                return times_filtered, values_filtered
+            return None
             
+        except Exception as e:
+            # print(f"Error processing {file_url}: {e}")
+            return None
         finally:
             # Clean up temp file
             try:
                 os.unlink(tmp_path)
             except:
                 pass
+
+    # Use ThreadPoolExecutor for parallel downloads
+    # Limit to 5 workers to avoid hitting CDAWeb rate limits
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(process_file, file_descriptions))
+    
+    # Collect valid results
+    for res in results:
+        if res:
+            all_times.append(res[0])
+            all_values.append(res[1])
     
     if not all_times:
         raise ValueError(
@@ -390,16 +406,18 @@ def load_fpi_cdasws(
         all_times = []
         all_values = []
         
+        
         import urllib.request
         
-        for file_desc in file_descriptions:
+        def process_fpi_file(file_desc):
             file_url = file_desc.get('Name')
             if not file_url:
-                continue
+                return None
             
             with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
                 tmp_path = tmp.name
             
+            try:
             try:
                 urllib.request.urlretrieve(file_url, tmp_path)
                 cdf = cdflib.CDF(tmp_path)
@@ -427,13 +445,13 @@ def load_fpi_cdasws(
                             break
                 
                 if epoch_data is None:
-                    continue
+                    return None
                 
                 # Get velocity data
                 try:
                     vel_data = cdf.varget(var_name)
                 except:
-                    continue
+                    return None
                 
                 # Convert epoch to datetime - use encode for safe TT2000 conversion
                 times = cdflib.cdfepoch.encode(epoch_data)
@@ -446,14 +464,23 @@ def load_fpi_cdasws(
                 values_filtered = vel_data[mask]
                 
                 if len(times_filtered) > 0:
-                    all_times.append(times_filtered)
-                    all_values.append(values_filtered)
+                    return times_filtered, values_filtered
+                return None
                 
             finally:
                 try:
                     os.unlink(tmp_path)
                 except:
                     pass
+        
+        # Use ThreadPoolExecutor for parallel downloads
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            batch_results = list(executor.map(process_fpi_file, file_descriptions))
+            
+        for res in batch_results:
+            if res:
+                all_times.append(res[0])
+                all_values.append(res[1])
         
         if not all_times:
             warnings.warn(f"No {label} data found in time range")
@@ -687,10 +714,10 @@ def _download_cdf_and_extract(
     all_times = []
     all_values = []
     
-    for file_desc in file_descriptions:
+    def process_generic_file(file_desc):
         file_url = file_desc.get('Name')
         if not file_url:
-            continue
+            return None
         
         with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
             tmp_path = tmp.name
@@ -711,7 +738,7 @@ def _download_cdf_and_extract(
                         continue
             
             if epoch_data is None:
-                continue
+                return None
             
             # Try each var pattern
             field_data = None
@@ -740,7 +767,7 @@ def _download_cdf_and_extract(
                         break
             
             if field_data is None:
-                continue
+                return None
             
             # Convert epoch to datetime - use encode for safe TT2000 conversion
             times = cdflib.cdfepoch.encode(epoch_data)
@@ -761,14 +788,23 @@ def _download_cdf_and_extract(
             values_filtered = field_data[mask]
             
             if len(times_filtered) > 0:
-                all_times.append(times_filtered)
-                all_values.append(values_filtered)
+                return times_filtered, values_filtered
+            return None
             
         finally:
             try:
                 os.unlink(tmp_path)
             except:
                 pass
+
+    # Use ThreadPoolExecutor for parallel downloads
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        results = list(executor.map(process_generic_file, file_descriptions))
+        
+    for res in results:
+        if res:
+            all_times.append(res[0])
+            all_values.append(res[1])
     
     if not all_times:
         raise ValueError(f"No data extracted from {dataset}")

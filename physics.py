@@ -5,7 +5,8 @@ Pure mathematical functions for spectral analysis, statistics, and turbulence.
 """
 
 import numpy as np
-import numpy as np
+from scipy import signal
+from scipy import stats
 from typing import Tuple, Dict, Optional, Union
 from dataclasses import dataclass
 import streamlit as st
@@ -191,7 +192,6 @@ def compute_psd_welch(
     """
     Compute PSD for MMS data, handling gaps by averaging PSDs of valid segments.
     """
-    from scipy import signal
     # 1. Clean NaNs (Basic cleanup) and keep time aligned
     data = np.asarray(_data).reshape(-1)
     time_data = np.asarray(_time_data).reshape(-1)
@@ -390,7 +390,6 @@ def compute_statistics(_data: np.ndarray) -> StatisticsResult:
     Returns:
         StatisticsResult with mean, median, std, variance, skewness, kurtosis
     """
-    from scipy import stats
     # Count NaN before cleaning
     n_nan = np.sum(~np.isfinite(_data))
     
@@ -518,7 +517,6 @@ def fit_power_law(
     Returns:
         Tuple of (alpha, A, r_squared) where y = A * x^alpha
     """
-    from scipy import stats
     # Filter to positive values
     mask = (_x > 0) & (_y > 0) & np.isfinite(_x) & np.isfinite(_y)
     
@@ -587,8 +585,6 @@ def find_target_alpha_range(
     if window_len % 2 == 0: window_len -= 1
     if window_len < 5: return f_valid[0], f_valid[-1], -1.0
     
-    
-    from scipy import signal
     local_slopes = signal.savgol_filter(log_p, window_length=window_len, polyorder=2, deriv=1, delta=np.mean(np.diff(log_f)))
     
     # 3. Identify regions where slope is within tolerance
@@ -651,7 +647,6 @@ def find_target_alpha_range(
                     continue
                 
                 # Fit this window
-                from scipy import stats
                 slope, _, _, _, _ = stats.linregress(log_f[i:j], log_p[i:j])
                 err = abs(slope - target_alpha)
                 
@@ -749,7 +744,6 @@ def compute_kde(
         # Fallback to scipy if sklearn is not available (e.g. pending restart)
         if kernel == 'gaussian':
             try:
-                from scipy import stats
                 kde_scipy = stats.gaussian_kde(data_clean, bw_method=bandwidth)
                 density = kde_scipy(x_grid)
                 return x_grid, density
