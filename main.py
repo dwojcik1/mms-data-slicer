@@ -6,27 +6,10 @@ Kinetic scale time series processing for space plasma physics.
 
 import streamlit as st
 import os
-import tempfile
-from pathlib import Path
 
-# Configure PySPEDAS download directory to a writable folder (Streamlit Cloud safe)
+# Configure PySPEDAS download directory to local folder for Streamlit Cloud
 # Must be set before importing pyspedas
-def _configure_spedas_data_dir() -> str:
-    preferred = Path(os.getcwd()) / "pydata"
-    try:
-        preferred.mkdir(parents=True, exist_ok=True)
-        test_path = preferred / ".spedas_write_test"
-        test_path.write_text("ok")
-        test_path.unlink()
-        data_dir = preferred
-    except Exception:
-        data_dir = Path(tempfile.gettempdir()) / "pyspedas_data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-    return str(data_dir)
-
-_spedas_data_dir = _configure_spedas_data_dir()
-os.environ["SPEDAS_DATA_DIR"] = _spedas_data_dir
-os.environ["MMS_DATA_DIR"] = _spedas_data_dir
+os.environ["SPEDAS_DATA_DIR"] = os.path.join(os.getcwd(), "pydata")
 
 import matplotlib
 matplotlib.use('Agg')
@@ -1473,21 +1456,13 @@ def render_nasa_download_form():
                 
                 with st.spinner("Generating Orbit Plot..."):
                     try:
-                        import importlib
-                        import plots as plots_module
+                        from plots import plot_mms_orbit_wrapper
                         
                         # Pass probes as comes (wrapper expects strings, but st.multiselect gives ints or strings?)
                         # st.multiselect given options [1, 2, 3, 4] (ints) will return ints.
                         # plot_mms_orbit_wrapper handles conversion to strings.
                         
-                        plot_func = getattr(plots_module, "plot_mms_orbit_cdas", None)
-                        if plot_func is None:
-                            plots_module = importlib.reload(plots_module)
-                            plot_func = getattr(plots_module, "plot_mms_orbit_cdas", None)
-                        if plot_func is None:
-                            raise ImportError("plot_mms_orbit_cdas not found. Please restart the app.")
-
-                        fig = plot_func(
+                        fig = plot_mms_orbit_wrapper(
                             trange=trange,
                             probes=probes,
                             plane=plane,

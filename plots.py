@@ -4,7 +4,6 @@ plots.py - Publication-Quality Visualization Module
 Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
-import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -956,14 +955,6 @@ def plot_mms_orbit_wrapper(
     
     try:
         from pyspedas.projects.mms import mms_orbit_plot
-        import pyspedas
-        # Ensure PySPEDAS writes to the configured data dir
-        data_dir = os.environ.get("SPEDAS_DATA_DIR")
-        if data_dir:
-            try:
-                pyspedas.config.CONFIG["local_data_dir"] = data_dir
-            except Exception:
-                pass
     except ImportError:
         st.error("Could not import mms_orbit_plot from pyspedas.projects.mms")
         return None
@@ -1039,73 +1030,3 @@ def plot_mms_orbit_wrapper(
     except Exception as e:
         st.error(f"Error generating orbit plot: {e}")
         return None
-
-
-def plot_mms_orbit_cdas(
-    trange: List[str],
-    probes: List[str],
-    plane: str = 'xy',
-    coord: str = 'gse'
-):
-    """
-    Plot MMS orbits using CDAWeb MEC data (Streamlit Cloud friendly).
-    """
-    from downloader import load_mms_universal
-
-    plt.close('all')
-    fig, ax = plt.subplots(figsize=(7.5, 7.5))
-
-    plane = (plane or 'xy').lower()
-    coord = (coord or 'gse').lower()
-    if coord not in {'gse', 'gsm'}:
-        coord = 'gse'
-
-    # Map: MMS1: Red, MMS2: Green, MMS3: Red, MMS4: Black
-    color_map = {
-        '1': 'red',
-        '2': 'green',
-        '3': 'red',
-        '4': 'black'
-    }
-
-    axis_map = {
-        'xy': ('X', 'Y'),
-        'xz': ('X', 'Z'),
-        'yz': ('Y', 'Z')
-    }
-    x_key, y_key = axis_map.get(plane, ('X', 'Y'))
-
-    for probe in probes:
-        probe_str = str(probe)
-        data = load_mms_universal(
-            instrument='mec',
-            trange=trange,
-            probe=probe_str,
-            data_rate='srvy',
-            level='l2',
-            coord=coord
-        )
-        df = data.get('MEC')
-        if df is None or df.empty:
-            continue
-
-        # Light subsample for responsive plotting
-        step = max(1, len(df) // 3000)
-        plot_df = df.iloc[::step]
-
-        ax.plot(
-            plot_df[x_key],
-            plot_df[y_key],
-            linewidth=0.7,
-            color=color_map.get(probe_str, 'black'),
-            label=f"MMS{probe_str}"
-        )
-
-    ax.set_title(f"MMS Orbit ({coord.upper()} / {plane.upper()})")
-    ax.set_xlabel(f"{x_key} (km)")
-    ax.set_ylabel(f"{y_key} (km)")
-    ax.grid(True, color='lightgrey', linestyle='--', linewidth=0.5)
-    ax.set_aspect('equal', adjustable='datalim')
-    ax.legend(loc='upper right', frameon=True)
-
-    return fig
