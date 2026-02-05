@@ -1149,7 +1149,7 @@ def render_data_loader():
     # Restructured Intro Section
     st.info(
         """
-        **Mission Capabilities**
+        **Application Capabilities**
         *   **Multi-Instrument Analysis:** Load and visualize data from MMS instruments (FGM, FPI, SCM, etc.).
         *   **Spectral Analysis:** Compute Power Spectral Density (PSD) with advanced dual-slope fitting (Inertial/Kinetic ranges).
         *   **Orbit Visualization:** 2D projections of spacecraft trajectories (MMS1-4) in various coordinate systems.

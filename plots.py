@@ -163,7 +163,7 @@ def plot_magnetic_field(
         # Use thick line for magnitude, thinner for components
         width = 2.5 if col in ['Bt', 'B3'] else 1.8
         
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=df.index,
             y=df[col].values,
             mode='lines',
@@ -334,7 +334,7 @@ def plot_velocity_field(
         label = label_map.get(col, col)
         width = 2.5 if col in ['Vt', 'V3'] else 1.8
         
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=df.index,
             y=df[col].values,
             mode='lines',
@@ -442,25 +442,25 @@ def plot_time_series(df, meta, title=None):
         tot_col = next((c for c in cols if c.lower() in ['tot', 'bt', 'vt', 'et', 'mag', 't']), None)
 
         if x_col:
-            fig.add_trace(go.Scattergl(
+            fig.add_trace(go.Scatter(
                 x=df.index, y=df[x_col], mode='lines',
                 name=f"{meta['label']}_x",
                 line=dict(color="#1f77b4", width=1.5)
             ))
         if y_col:
-            fig.add_trace(go.Scattergl(
+            fig.add_trace(go.Scatter(
                 x=df.index, y=df[y_col], mode='lines',
                 name=f"{meta['label']}_y",
                 line=dict(color="#2ca02c", width=1.5)
             ))
         if z_col:
-            fig.add_trace(go.Scattergl(
+            fig.add_trace(go.Scatter(
                 x=df.index, y=df[z_col], mode='lines',
                 name=f"{meta['label']}_z",
                 line=dict(color="#d62728", width=1.5)
             ))
         if tot_col:
-            fig.add_trace(go.Scattergl(
+            fig.add_trace(go.Scatter(
                 x=df.index, y=df[tot_col], mode='lines',
                 name=f"|{meta['label']}|",
                 line=dict(color="#000000", width=2, dash='solid')
@@ -469,7 +469,7 @@ def plot_time_series(df, meta, title=None):
     elif meta['type'] == 'scalar':
         # Just take the first column
         col = df.columns[0]
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=df.index, y=df[col], mode='lines',
             name=meta['label'],
             line=dict(color="#9467bd", width=1.5)
@@ -582,7 +582,7 @@ def create_psd_plot(
     fit2_midpoint = None
     
     # Store PSD data - will be added LAST so fit lines render on top
-    psd_trace = go.Scattergl(
+    psd_trace = go.Scatter(
         x=frequencies, y=power, mode='lines', name='PSD',
         line=dict(color='#000000', width=2.2),
         hovertemplate='f=%{x:.3g} Hz<br>PSD=%{y:.3g}<extra></extra>'
@@ -612,7 +612,7 @@ def create_psd_plot(
                 f_anchor = np.sqrt(f_start * f_end)
                 p_anchor = np.interp(f_anchor, frequencies, power)
                 p_ref = p_anchor * (f_ref / f_anchor) ** slope
-                return go.Scattergl(
+                return go.Scatter(
                     x=f_ref, y=p_ref, mode='lines',
                     name=label,
                     line=dict(dash=dash, width=2, color='#888888'),
@@ -702,7 +702,7 @@ def create_psd_plot(
     # Add fit lines AFTER PSD so they render ON TOP
     if fit1_result[0] is not None:
         f_line, p_line, color = fit1_result[2]
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=f_line, y=p_line, mode='lines',
             name='Fit 1',
             line=dict(dash='solid', width=3, color=color),
@@ -711,7 +711,7 @@ def create_psd_plot(
     
     if fit2_result[0] is not None:
         f_line, p_line, color = fit2_result[2]
-        fig.add_trace(go.Scattergl(
+        fig.add_trace(go.Scatter(
             x=f_line, y=p_line, mode='lines',
             name='Fit 2',
             line=dict(dash='solid', width=3, color=color),
@@ -853,7 +853,7 @@ def create_pdf_plot(
             x_gauss = np.linspace(bin_centers.min(), bin_centers.max(), 100)
             y_gauss = (1 / (std * np.sqrt(2 * np.pi))) * np.exp(-(x_gauss - mean)**2 / (2 * std**2))
             
-            fig.add_trace(go.Scattergl(
+            fig.add_trace(go.Scatter(
                 x=x_gauss, y=y_gauss, mode='lines', name='Gaussian',
                 line=dict(color=COLORS[1], width=2, dash='dash')
             ))
