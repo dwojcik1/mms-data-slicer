@@ -1144,24 +1144,21 @@ def render_data_loader():
     
 
     # Main title
-    st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab ◇")
+    st.markdown("## Magnetospheric Multiscale (MMS) Turbulence Lab")
+    
+    # Restructured Intro Section
+    st.info(
+        """
+        **Mission Capabilities**
+        *   **Multi-Instrument Analysis:** Load and visualize data from MMS instruments (FGM, FPI, SCM, etc.).
+        *   **Spectral Analysis:** Compute Power Spectral Density (PSD) with advanced dual-slope fitting (Inertial/Kinetic ranges).
+        *   **Orbit Visualization:** 2D projections of spacecraft trajectories (MMS1-4) in various coordinate systems.
+        *   **Space Physics Tools:** Analyze turbulence, spectral indices, and plasma parameters in a unified interface.
+        """, icon="🌌"
+    )
+
     st.markdown("### Data Configuration")
     st.caption("Select your data source and configure the download parameters.")
-    
-    # App usage summary
-    st.markdown(
-        """
-        <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
-        <strong>What this app does:</strong>
-        <ul style="margin-top: 5px; margin-bottom: 0px; margin-left: -20px;">
-            <li><strong>Time Series Analysis:</strong> Analyze high-resolution plasma data (FGM, FPI, SCM, EDP). Compute Power Spectral Densities (PSD), Probability Distribution Functions (PDF), and turbulence statistics (Kurtosis, etc).</li>
-            <li><strong>Orbit Plots:</strong> Visualize the 4-spacecraft constellation trajectory in various planes (XY, XZ, YZ) and coordinates (GSE, GSM) relative to Earth.</li>
-            <li><strong>Data Access:</strong> Download science-quality data directly from NASA CDAWeb or upload local CDF files.</li>
-        </ul>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
     
     # "What this app does" info box
 
@@ -1217,15 +1214,26 @@ def render_nasa_download_form():
     
     # Analysis Type Selection
     st.markdown("### Analysis Type")
-    analysis_type = st.radio(
-        "Select Operation Mode",
-        ["📈 Time Series Analysis", "🛰️ Orbit Plots"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    try:
+        # Try new segmented control (Streamlit 1.39+)
+        analysis_type = st.segmented_control(
+            "Select Operation Mode",
+            ["Time Series Analysis", "Orbit Plots"],
+            selection_mode="single",
+            default="Time Series Analysis"
+        )
+        if not analysis_type: analysis_type = "Time Series Analysis"
+    except AttributeError:
+        # Fallback
+        analysis_type = st.radio(
+            "Select Operation Mode",
+            ["Time Series Analysis", "Orbit Plots"],
+            horizontal=True,
+            label_visibility="collapsed"
+        )
 
     # Instrument selection (Only for Time Series)
-    if "Time Series Analysis" in analysis_type:
+    if analysis_type == "Time Series Analysis":
         st.markdown("### Instrument Selection")
         
         instrument_name = st.selectbox(
@@ -1411,28 +1419,29 @@ def render_nasa_download_form():
                     
                     total_pts = sum(len(v) for v in st.session_state.data.values())
                     st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
-                    # Disclaimer Note moved here
-                    st.markdown(
-                       "<p style='text-align: center; opacity: 0.7; font-size: 0.85em; margin-top: 10px;'>"
-                       "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
-                       "</p>",
-                       unsafe_allow_html=True
-                    )
                     st.rerun()
                     
                 except Exception as e:
                     st.error(f"Download failed: {e}")
+            
+            # Disclaimer Note (Time Series)
+            st.markdown(
+                "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
+                "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+                "</div>",
+                unsafe_allow_html=True
+            )
 
-    elif "Orbit Plots" in analysis_type:
+    elif analysis_type == "Orbit Plots":
         # Configuration for Orbits
         st.markdown("### Orbit Configuration")
         
         c_orb1, c_orb2 = st.columns(2)
         with c_orb1:
-            # Lowercase options as per refactoring plan
+            # Uppercase options
             plane = st.selectbox("Projection Plane", ['XY', 'XZ', 'YZ'], index=0, help="Plane to project the 3D orbit onto.")
         with c_orb2:
-            # Lowercase options as per refactoring plan
+            # Uppercase options
             coord_sys = st.selectbox("Coordinates", ['GSE', 'GSM', 'SM', 'GEO'], index=0, help="Coordinate system for position data.")
             
         # Default probes as integers (will be handled by wrapper or logic)
@@ -1466,10 +1475,18 @@ def render_nasa_download_form():
                             st.success("Orbit plot generated successfully!")
                     except Exception as e:
                         st.error(f"Orbit plot generation failed: {e}")
+            
+            # Disclaimer Note (Orbit Plots)
+            st.markdown(
+                "<div style='text-align: center; margin-top: 8px; opacity: 0.7; font-size: 0.85em;'>"
+                "📝 <em>Note: Data will not be saved to your local device unless explicitly exported.</em>"
+                "</div>",
+                unsafe_allow_html=True
+            )
 
     
-    # Footer disclaimer (centered)
-    st.markdown("---")
+    # Footer disclaimer (centered) - removed as requested
+    st.markdown("")
 
 
 def render_upload_form():
