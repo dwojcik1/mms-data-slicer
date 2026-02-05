@@ -618,7 +618,7 @@ def find_target_alpha_range(
     best_width = -1.0
     
     for seg in segments:
-        if len(seg) < 2: continue
+        if len(seg) < 10: continue  # Enforce minimum points for robust fit
         
         f_start = f_valid[seg[0]]
         f_end = f_valid[seg[-1]]
