@@ -427,7 +427,7 @@ def plot_time_series(df, meta, title=None):
     Args:
         df: DataFrame (index=Epoch)
         meta: Dict with keys 'label', 'unit', 'type'
-              example: {'label': r"$\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
+              example: {'label': r"$\\mathbf{B}$", 'unit': "[nT]", 'type': 'vector'}
     """
     fig = go.Figure()
 
