@@ -630,8 +630,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
     if mode == "Time Series":
         with st.sidebar.expander("Settings", expanded=True):
             sub = st.checkbox("Subsample", value=True, key="multi_sub")
-            # Default to 10000 (heuristic 20% of 50k max)
-            pts = st.slider("Points", 1000, 50000, 10000, key="multi_pts") if sub else 999999
+            pts = st.slider("Points", 1000, 50000, 15000, key="multi_pts") if sub else 999999
         
         # Iterate through each dataset
         for key, df in datasets.items():
@@ -857,10 +856,7 @@ def render_dataframe_analysis(df, time_data):
         
         with st.sidebar.expander("Settings", expanded=True):
             sub = st.checkbox("Subsample", value=True, key="df_sub")
-            # Default to 20% of data length, clamped between 1000 and 50000
-            default_pts = int(len(df) * 0.2)
-            default_pts = max(1000, min(50000, default_pts))
-            pts = st.slider("Points", 1000, 50000, default_pts, key="df_pts") if sub else len(df)
+            pts = st.slider("Points", 1000, 50000, 15000, key="df_pts") if sub else len(df)
         
         # Subsample if needed
         if sub and len(df) > pts:
@@ -1578,6 +1574,21 @@ def render_sidebar():
         
         # Keep total length in session state for callbacks
         st.session_state["total_len"] = total_len
+
+        # Detect data change and Force Update to 20%
+        # If total_len changed (new data loaded), reset the subsample points to 20%
+        last_len = st.session_state.get("last_total_len", 0)
+        if total_len > 0 and total_len != last_len:
+            st.session_state["last_total_len"] = total_len
+            # Reset to 20%
+            target_pts = int(total_len * 0.20)
+            target_pts = max(100, min(target_pts, 100000)) # Clamp
+            st.session_state["subsample_pts"] = target_pts
+            st.session_state["subsample_pct"] = 20
+        
+        # Also init if missing
+        if "last_total_len" not in st.session_state and total_len > 0:
+             st.session_state["last_total_len"] = total_len
 
         # Single number input for subsample control
         min_pts = 100  # Allow smaller datasets
