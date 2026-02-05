@@ -2348,22 +2348,74 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
                     line=dict(color='#d62728', width=2.5)
                 ))
 
-        # Styling (Square Aspect Ratio)
+        # Styling (Square Aspect Ratio + TS/PSD Match)
         fig.update_layout(
+            # Force white background for visibility and clean export
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            font=dict(color='black', family='Arial, sans-serif'),
+            
             title=None,
-            xaxis_title=f"{selected_col} [{units}]",
-            yaxis_title="Probability Density",
+            
+            # Axis titles
+            xaxis_title=dict(
+                text=f"{selected_col} [{units}]",
+                font=dict(size=16, color='black')
+            ),
+            yaxis_title=dict(
+                text="Probability Density",
+                font=dict(size=16, color='black')
+            ),
+            
             width=600,
             height=600,
-            template="plotly_white",
+            hovermode='x unified',
+            
+            # Legend inside plot
             showlegend=True,
             legend=dict(
-                orientation="h",
-                yanchor="bottom",
+                orientation='h',
+                yanchor='bottom',
                 y=1.02,
-                xanchor="right",
-                x=1
-            )
+                xanchor='right',
+                x=1,
+                bgcolor='rgba(255,255,255,0.95)',
+                bordercolor='rgba(0,0,0,0.3)',
+                borderwidth=1,
+                font=dict(size=14, color='black')
+            ),
+            
+            margin=dict(l=70, r=40, t=20, b=60),
+        )
+        
+        # Grid styling - very light grey
+        grid_color = '#E5E5E5'
+        
+        fig.update_xaxes(
+            showgrid=True,
+            gridcolor=grid_color,
+            gridwidth=1,
+            tickfont=dict(size=13, color='black'),
+            title_standoff=15,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
+        )
+        
+        fig.update_yaxes(
+            showgrid=True,
+            gridcolor=grid_color,
+            gridwidth=1,
+            tickfont=dict(size=13, color='black'),
+            title_standoff=15,
+            zeroline=True,
+            zerolinecolor='rgba(0,0,0,0.3)',
+            zerolinewidth=1.5,
+            showline=True,
+            linewidth=1,
+            linecolor='black',
+            mirror=True
         )
         
         if logy:
