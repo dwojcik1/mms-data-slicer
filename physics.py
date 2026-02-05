@@ -547,62 +547,111 @@ def find_target_alpha_range(
     _frequencies: np.ndarray,
     _power: np.ndarray,
     target_alpha: float = -5/3,
-    window_size: int = 15,
-    min_points: int = 10
+    tolerance: float = 0.25,
+    r2_threshold: float = 0.9,
+    min_decades: float = 0.2
 ) -> Tuple[float, float, float]:
     """
-    Find frequency range where local spectral slope matches target alpha.
+    Find widest frequency range where spectral slope matches target.
     
-    Uses a sliding window to compute local spectral indices and finds
-    the window where the slope is closest to the target value.
+    Algorithm:
+    1. Scan potential windows of size `min_decades`.
+    2. Identify 'seed' windows where slope is within `tolerance` of `target_alpha`.
+    3. Select best seed (min error).
+    4. Greedily expand seed left/right while maintaining slope & R^2 criteria.
     
     Args:
-        frequencies: Frequency array in Hz
-        power: Power spectral density array
-        target_alpha: Target spectral index (e.g., -1.67 for Kolmogorov)
-        window_size: Number of points in sliding window for local slope
-        min_points: Minimum points required in a valid window
+        frequencies: Frequency array (Hz)
+        power: PSD array
+        target_alpha: Target slope (-1.67, -2.67 etc)
+        tolerance: Max allowed deviation from target slope during expansion
+        r2_threshold: Min R^2 required to continue expansion
+        min_decades: Minimum width of search window in log10 space
         
     Returns:
-        Tuple of (f_min, f_max, actual_alpha) for the best matching range
-        
-    Raises:
-        ValueError: If insufficient valid data points
+        (f_min, f_max, fitted_alpha)
     """
-    # Filter to positive values only
+    # Filter valid positive data
     mask = (_frequencies > 0) & (_power > 0) & np.isfinite(_frequencies) & np.isfinite(_power)
-    f_valid = _frequencies[mask]
-    p_valid = _power[mask]
+    f = _frequencies[mask]
+    p = _power[mask]
     
-    if len(f_valid) < min_points:
-        raise ValueError(f"Insufficient valid data points: {len(f_valid)}")
-    
-    # Work in log-log space
-    log_f = np.log10(f_valid)
-    log_p = np.log10(p_valid)
-    
-    # Ensure window size is reasonable
-    window_size = min(window_size, len(log_f) // 2)
-    window_size = max(window_size, min_points)
-    
-    best_diff = np.inf
-    best_range = (f_valid[0], f_valid[-1])
-    best_alpha = None
-    
-    # Slide window across the spectrum
-    for i in range(len(log_f) - window_size + 1):
-        log_f_window = log_f[i:i + window_size]
-        log_p_window = log_p[i:i + window_size]
+    if len(f) < 10:
+        raise ValueError(f"Insufficient data: {len(f)}")
         
-        # Linear regression in log-log space
-        slope, intercept, r_value, p_value, std_err = stats.linregress(log_f_window, log_p_window)
-        
-        # Check how close this slope is to target
-        diff = abs(slope - target_alpha)
-        
-        if diff < best_diff:
-            best_diff = diff
-            best_range = (f_valid[i], f_valid[i + window_size - 1])
-            best_alpha = slope
+    log_f = np.log10(f)
+    log_p = np.log10(p)
     
-    return (best_range[0], best_range[1], best_alpha)
+    # Define window size in indices (approx)
+    # Estimate avg delta log_f
+    d_log_f = (log_f[-1] - log_f[0]) / len(log_f)
+    if d_log_f <= 0: return (f[0], f[-1], -1.0)
+    
+    window_pts = int(min_decades / d_log_f)
+    window_pts = max(10, min(window_pts, len(f) // 3))
+    
+    # 1. Scan for best seed
+    best_seed_error = np.inf
+    best_seed_idx = None # (start, end)
+    best_seed_slope = None
+    
+    # Slide with overlap
+    step = max(1, window_pts // 4)
+    
+    for i in range(0, len(f) - window_pts, step):
+        j = i + window_pts
+        lf_w = log_f[i:j]
+        lp_w = log_p[i:j]
+        
+        slope, _, r_val, _, _ = stats.linregress(lf_w, lp_w)
+        err = abs(slope - target_alpha)
+        
+        # Must be somewhat linear and close to target
+        if r_val**2 > 0.8 and err < tolerance:
+            if err < best_seed_error:
+                best_seed_error = err
+                best_seed_idx = (i, j)
+                best_seed_slope = slope
+                
+    if best_seed_idx is None:
+        # Fallback: Just return widish range in middle if no match
+        mid = len(f)//2
+        w = len(f)//4
+        return (f[mid-w], f[mid+w], -1.0)
+        
+    # 2. Expand Algo
+    start, end = best_seed_idx
+    
+    # Expand Left
+    while start > 0:
+        # Try including start-1
+        new_start = start - 1
+        lf_test = log_f[new_start:end]
+        lp_test = log_p[new_start:end]
+        s, _, r, _, _ = stats.linregress(lf_test, lp_test)
+        
+        # Check criteria
+        if abs(s - target_alpha) <= tolerance and r**2 >= r2_threshold:
+            start = new_start
+        else:
+            break
+            
+    # Expand Right
+    while end < len(f):
+        # Try including end+1
+        new_end = end + 1
+        lf_test = log_f[start:new_end]
+        lp_test = log_p[start:new_end]
+        s, _, r, _, _ = stats.linregress(lf_test, lp_test)
+        
+        if abs(s - target_alpha) <= tolerance and r**2 >= r2_threshold:
+            end = new_end
+        else:
+            break
+            
+    # Final Fit
+    final_lf = log_f[start:end]
+    final_lp = log_p[start:end]
+    final_slope, _, _, _, _ = stats.linregress(final_lf, final_lp)
+    
+    return (f[start], f[end-1], final_slope)
