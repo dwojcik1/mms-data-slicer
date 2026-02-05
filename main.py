@@ -1473,13 +1473,13 @@ def render_nasa_download_form():
                 
                 with st.spinner("Generating Orbit Plot..."):
                     try:
-                        from plots import plot_mms_orbit_wrapper
+                        from plots import plot_mms_orbit_cdas
                         
                         # Pass probes as comes (wrapper expects strings, but st.multiselect gives ints or strings?)
                         # st.multiselect given options [1, 2, 3, 4] (ints) will return ints.
                         # plot_mms_orbit_wrapper handles conversion to strings.
                         
-                        fig = plot_mms_orbit_wrapper(
+                        fig = plot_mms_orbit_cdas(
                             trange=trange,
                             probes=probes,
                             plane=plane,
