@@ -548,110 +548,104 @@ def find_target_alpha_range(
     _power: np.ndarray,
     target_alpha: float = -5/3,
     tolerance: float = 0.25,
-    r2_threshold: float = 0.9,
-    min_decades: float = 0.2
+    min_bandwidth: float = 0.4  # Minimum bandwidth in decades
 ) -> Tuple[float, float, float]:
     """
-    Find widest frequency range where spectral slope matches target.
+    Find the widest frequency range where the spectral slope matches target_alpha.
     
-    Algorithm:
-    1. Scan potential windows of size `min_decades`.
-    2. Identify 'seed' windows where slope is within `tolerance` of `target_alpha`.
-    3. Select best seed (min error).
-    4. Greedily expand seed left/right while maintaining slope & R^2 criteria.
+    Robust algorithm for space physics turbulence:
+    1. Smooths the PSD in log-log space.
+    2. Computes local slope gradient.
+    3. Finds the longest contiguous region where specific slope is sustained.
     
     Args:
-        frequencies: Frequency array (Hz)
-        power: PSD array
-        target_alpha: Target slope (-1.67, -2.67 etc)
-        tolerance: Max allowed deviation from target slope during expansion
-        r2_threshold: Min R^2 required to continue expansion
-        min_decades: Minimum width of search window in log10 space
+        frequencies: Frequency array in Hz
+        power: Power spectral density array
+        target_alpha: Target spectral index (e.g. -1.67)
+        tolerance: Allowed deviation from target slope (default 0.25)
+        min_bandwidth: Minimum width of the fit in decades (default 0.4)
         
     Returns:
-        (f_min, f_max, fitted_alpha)
+        Tuple of (f_min, f_max, fitted_alpha) for the best matching range.
     """
-    # Filter valid positive data
+    # 1. Filter valid data
     mask = (_frequencies > 0) & (_power > 0) & np.isfinite(_frequencies) & np.isfinite(_power)
-    f = _frequencies[mask]
-    p = _power[mask]
+    f_valid = _frequencies[mask]
+    p_valid = _power[mask]
     
-    if len(f) < 10:
-        raise ValueError(f"Insufficient data: {len(f)}")
+    if len(f_valid) < 10:
+        raise ValueError("Insufficient data points")
+    
+    log_f = np.log10(f_valid)
+    log_p = np.log10(p_valid)
+    
+    # 2. Compute local slope using Savitzky-Golay (smooth derivative)
+    # Window length must be odd and <= len(log_f)
+    window_len = min(len(log_f), 31)
+    if window_len % 2 == 0: window_len -= 1
+    if window_len < 5: return f_valid[0], f_valid[-1], -1.0 # Fallback
+    
+    # deriv=1 gives the first derivative (slope)
+    local_slopes = signal.savgol_filter(log_p, window_length=window_len, polyorder=2, deriv=1, delta=np.mean(np.diff(log_f)))
+    
+    # 3. Identify regions where slope is within tolerance
+    diff = np.abs(local_slopes - target_alpha)
+    match_mask = diff <= tolerance
+    
+    if not np.any(match_mask):
+        # Fallback: Find the window with minimum error if no strict match exists
+        # Use a fixed reasonable window (e.g. 0.5 decade) search
+        # Simpler fallback: Just return the range around the point of min error
+        best_idx = np.argmin(diff)
+        # Try to expand 10 points left/right
+        start = max(0, best_idx - 10)
+        end = min(len(f_valid)-1, best_idx + 10)
         
-    log_f = np.log10(f)
-    log_p = np.log10(p)
+        # Refit on this small segment
+        alpha, _, _ = fit_power_law(f_valid[start:end], p_valid[start:end])
+        return f_valid[start], f_valid[end], alpha
+
+    # 4. Find longest contiguous match
+    # Get indices of matches
+    match_indices = np.where(match_mask)[0]
     
-    # Define window size in indices (approx)
-    # Estimate avg delta log_f
-    d_log_f = (log_f[-1] - log_f[0]) / len(log_f)
-    if d_log_f <= 0: return (f[0], f[-1], -1.0)
+    # Group into consecutive segments
+    # split where difference between indices is > 1
+    splits = np.where(np.diff(match_indices) > 1)[0] + 1
+    segments = np.split(match_indices, splits)
     
-    window_pts = int(min_decades / d_log_f)
-    window_pts = max(10, min(window_pts, len(f) // 3))
+    best_segment = None
+    best_width = -1.0
     
-    # 1. Scan for best seed
-    best_seed_error = np.inf
-    best_seed_idx = None # (start, end)
-    best_seed_slope = None
-    
-    # Slide with overlap
-    step = max(1, window_pts // 4)
-    
-    for i in range(0, len(f) - window_pts, step):
-        j = i + window_pts
-        lf_w = log_f[i:j]
-        lp_w = log_p[i:j]
+    for seg in segments:
+        if len(seg) < 2: continue
         
-        slope, _, r_val, _, _ = stats.linregress(lf_w, lp_w)
-        err = abs(slope - target_alpha)
+        f_start = f_valid[seg[0]]
+        f_end = f_valid[seg[-1]]
+        width_decades = np.log10(f_end) - np.log10(f_start)
         
-        # Must be somewhat linear and close to target
-        if r_val**2 > 0.8 and err < tolerance:
-            if err < best_seed_error:
-                best_seed_error = err
-                best_seed_idx = (i, j)
-                best_seed_slope = slope
-                
-    if best_seed_idx is None:
-        # Fallback: Just return widish range in middle if no match
-        mid = len(f)//2
-        w = len(f)//4
-        return (f[mid-w], f[mid+w], -1.0)
+        if width_decades > best_width:
+            best_width = width_decades
+            best_segment = seg
+
+    # 5. Result
+    if best_segment is not None and best_width >= min_bandwidth:
+        start_idx = best_segment[0]
+        end_idx = best_segment[-1]
         
-    # 2. Expand Algo
-    start, end = best_seed_idx
-    
-    # Expand Left
-    while start > 0:
-        # Try including start-1
-        new_start = start - 1
-        lf_test = log_f[new_start:end]
-        lp_test = log_p[new_start:end]
-        s, _, r, _, _ = stats.linregress(lf_test, lp_test)
+        # Perform a proper linear fit on this range to get the exact alpha
+        f_seg = f_valid[start_idx:end_idx]
+        p_seg = p_valid[start_idx:end_idx]
+        fitted_alpha, _, _ = fit_power_law(f_seg, p_seg)
         
-        # Check criteria
-        if abs(s - target_alpha) <= tolerance and r**2 >= r2_threshold:
-            start = new_start
-        else:
-            break
+        return f_valid[start_idx], f_valid[end_idx], fitted_alpha
+    else:
+        # If no segment met min_bandwidth, take the widest one found or fallback
+        if best_segment is not None:
+            start_idx = best_segment[0]
+            end_idx = best_segment[-1]
+            fitted_alpha, _, _ = fit_power_law(f_valid[start_idx:end_idx], p_valid[start_idx:end_idx])
+            return f_valid[start_idx], f_valid[end_idx], fitted_alpha
             
-    # Expand Right
-    while end < len(f):
-        # Try including end+1
-        new_end = end + 1
-        lf_test = log_f[start:new_end]
-        lp_test = log_p[start:new_end]
-        s, _, r, _, _ = stats.linregress(lf_test, lp_test)
-        
-        if abs(s - target_alpha) <= tolerance and r**2 >= r2_threshold:
-            end = new_end
-        else:
-            break
-            
-    # Final Fit
-    final_lf = log_f[start:end]
-    final_lp = log_p[start:end]
-    final_slope, _, _, _, _ = stats.linregress(final_lf, final_lp)
-    
-    return (f[start], f[end-1], final_slope)
+        # Hard fallback: return the single widest matching segment even if tiny, or full range
+        return f_valid[0], f_valid[-1], -1.0

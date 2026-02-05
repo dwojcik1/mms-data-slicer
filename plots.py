@@ -559,8 +559,6 @@ def create_psd_plot(
     psd_units: str = r"nT²/Hz",
     fit1_range: tuple = None,
     fit2_range: tuple = None,
-    fit1_fixed_alpha: float = None,
-    fit2_fixed_alpha: float = None,
     show_reference_slopes: bool = True
 ):
     """
@@ -571,14 +569,12 @@ def create_psd_plot(
         power: Power spectral density array
         title: Plot title
         psd_units: Y-axis units string
-        fit1_range: Optional tuple (f_min, f_max)
-        fit2_range: Optional tuple (f_min, f_max)
-        fit1_fixed_alpha: Force fit 1 to this slope (calculate intercept only)
-        fit2_fixed_alpha: Force fit 2 to this slope (calculate intercept only)
-        show_reference_slopes: Whether to show reference lines
+        fit1_range: Optional tuple (f_min, f_max) for first fit (displayed in red)
+        fit2_range: Optional tuple (f_min, f_max) for second fit (displayed in green)
+        show_reference_slopes: Whether to show Kolmogorov and Kinetic reference lines
     
     Returns:
-        Tuple of (fig, alpha1, alpha2)
+        Tuple of (fig, alpha1, alpha2) where alphas are fitted slopes or None
     """
     fig = go.Figure()
     alpha1, alpha2 = None, None
@@ -648,7 +644,7 @@ def create_psd_plot(
                 ref_traces.append(tr)
     
     # Helper function to compute fit and add to plot
-    def add_fit_trace(fit_range, color, fit_name, fixed_alpha=None):
+    def add_fit_trace(fit_range, color, fit_name, fit_idx):
         if fit_range is None or len(frequencies) < 3:
             return None, None, None
             
@@ -662,19 +658,10 @@ def create_psd_plot(
         if len(f_fit) < 3:
             return None, None, None
             
-        # Fitting Logic
+        # Linear fit in log-log space
         log_f = np.log10(f_fit)
         log_p = np.log10(p_fit)
-        
-        if fixed_alpha is not None:
-            # FIXED SLOPE Fitting:
-            # We fix slope = alpha, and minimize squared error for intercept only.
-            # Best intercept = mean(y) - slope * mean(x)
-            slope = fixed_alpha
-            intercept = np.mean(log_p) - slope * np.mean(log_f)
-        else:
-            # Free Fitting (Standard)
-            slope, intercept = np.polyfit(log_f, log_p, 1)
+        slope, intercept = np.polyfit(log_f, log_p, 1)
         
         # Generate fit line
         f_line = np.array([fit_f_min * 0.9, fit_f_max * 1.1])
@@ -696,8 +683,8 @@ def create_psd_plot(
         return slope, (mid_f, mid_p), (f_line, p_line, color)
     
     # Compute fits first (but don't add traces yet)
-    fit1_result = add_fit_trace(fit1_range, '#d62728', 'Fit 1', fit1_fixed_alpha)
-    fit2_result = add_fit_trace(fit2_range, '#2ca02c', 'Fit 2', fit2_fixed_alpha)
+    fit1_result = add_fit_trace(fit1_range, '#d62728', 'Fit 1', 1)
+    fit2_result = add_fit_trace(fit2_range, '#2ca02c', 'Fit 2', 2)
     
     alpha1 = fit1_result[0] if fit1_result[0] else None
     fit1_midpoint = fit1_result[1] if fit1_result[0] else None
