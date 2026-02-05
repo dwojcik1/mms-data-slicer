@@ -26,7 +26,7 @@ from utils import (
     CDFLoader, extract_component, get_variable_metadata, 
     get_component_label, VariableMetadata
 )
-from physics import compute_psd_welch, compute_pdf, compute_statistics
+from physics import compute_psd_welch, cached_stats, get_pdf_cached
 
 
 from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG, PSD_CONFIG
@@ -584,13 +584,8 @@ def cached_psd(data_tuple, time_tuple, fs_override: float = 0.0):
     fs = fs_override if fs_override and fs_override > 0 else None
     return compute_psd_welch(data, time_data, fs_override=fs)
 
-@st.cache_data  
-def cached_pdf(data_tuple, n_bins):
-    return compute_pdf(np.array(data_tuple), n_bins=n_bins)
 
-@st.cache_data
-def cached_stats(data_tuple):
-    return compute_statistics(np.array(data_tuple))
+
 
 @st.cache_data
 def cached_metadata(raw_name: str, units: str = '') -> dict:
@@ -799,7 +794,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
             logy = c2.checkbox("Log Y", key="spectral_logy")
             
             try:
-                pdf = cached_pdf(tuple(clean_data), bins)
+                pdf = get_pdf_cached(tuple(clean_data), bins)
                 units = "nT" if 'B' in selected_col else "km/s"
                 fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} ({units})", log_y=logy)
                 st.plotly_chart(fig, use_container_width=True)
@@ -809,6 +804,7 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
         else:
             st.markdown(f"#### Summary: {selected_key} {selected_col}")
             try:
+                # Use cached version from physics
                 stats = cached_stats(tuple(clean_data))
                 for n, v in create_stats_display(stats).items():
                     st.text(f"{n}: {v}")
