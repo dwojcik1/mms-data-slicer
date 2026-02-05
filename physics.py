@@ -698,7 +698,7 @@ def compute_kde(
     n_points: int = 200
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Compute Kernel Density Estimation using sklearn.
+    Compute Kernel Density Estimation using sklearn with scipy fallback.
     
     Args:
         data: 1D data array
@@ -709,32 +709,46 @@ def compute_kde(
     Returns:
         Tuple of (x_grid, density)
     """
-    from sklearn.neighbors import KernelDensity
-    
-    data = data[np.isfinite(data)].reshape(-1, 1)
-    if len(data) == 0:
+    data_clean = data[np.isfinite(data)]
+    if len(data_clean) == 0:
         return np.array([]), np.array([])
         
-    # Silverman's Rule for bandwidth if not provided
-    if bandwidth is None:
-        std_dev = np.std(data)
-        n = len(data)
-        # 1.06 * A * n^(-1/5) where A = min(std, IQR/1.34)
-        iqr = np.subtract(*np.percentile(data, [75, 25]))
-        a = min(std_dev, iqr / 1.34) if iqr > 0 else std_dev
-        bw = 1.06 * a * n ** (-0.2)
-        if bw == 0: bw = 1.0
-        bandwidth = bw
-        
-    kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data)
-    
-    min_val = data.min()
-    max_val = data.max()
+    data_reshaped = data_clean.reshape(-1, 1)
+
+    min_val = data_clean.min()
+    max_val = data_clean.max()
     range_val = max_val - min_val
     margin = range_val * 0.1
-    
-    x_grid = np.linspace(min_val - margin, max_val + margin, n_points).reshape(-1, 1)
-    log_density = kde.score_samples(x_grid)
-    density = np.exp(log_density)
-    
-    return x_grid.flatten(), density
+    x_grid = np.linspace(min_val - margin, max_val + margin, n_points)
+
+    try:
+        from sklearn.neighbors import KernelDensity
+        
+        # Silverman's Rule for bandwidth if not provided
+        if bandwidth is None:
+            std_dev = np.std(data_clean)
+            n = len(data_clean)
+            iqr = np.subtract(*np.percentile(data_clean, [75, 25]))
+            a = min(std_dev, iqr / 1.34) if iqr > 0 else std_dev
+            bw = 1.06 * a * n ** (-0.2)
+            if bw == 0: bw = 1.0
+            bandwidth = bw
+            
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data_reshaped)
+        log_density = kde.score_samples(x_grid.reshape(-1, 1))
+        density = np.exp(log_density)
+        
+        return x_grid, density
+        
+    except ImportError:
+        # Fallback to scipy if sklearn is not available (e.g. pending restart)
+        if kernel == 'gaussian':
+            try:
+                kde_scipy = stats.gaussian_kde(data_clean, bw_method=bandwidth)
+                density = kde_scipy(x_grid)
+                return x_grid, density
+            except Exception:
+                pass
+        
+        # If fallback fails or kernel not supported
+        raise ImportError(f"Advanced KDE ({kernel}) requires scikit-learn. Please restart the app server or install scikit-learn.")
