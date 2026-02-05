@@ -2224,9 +2224,9 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
         st.markdown(
             f"<div style='font-size: 0.9em; color: #555; margin-top: 10px;'>"
             f"<b>Dataset:</b> {dataset_str}<br>"
-            f"<b>Sampling Frequency ($F_s$):</b> {psd.sampling_frequency:.1f} Hz | "
+            f"<b>Sampling Frequency (Fs):</b> {psd.sampling_frequency:.1f} Hz | "
             f"<b>Window Size:</b> {psd.nperseg} | "
-            f"<b>Total Points ($N$):</b> {len(clean_data):,}"
+            f"<b>Total Points (N):</b> {len(clean_data):,}"
             "</div>",
             unsafe_allow_html=True
         )
