@@ -281,9 +281,9 @@ PSD_CONFIG = {
     'displayModeBar': True,
     'displaylogo': False,
     'modeBarButtonsToRemove': ['lasso2d', 'select2d'],
-    'editable': True,  # Enable shape dragging
+    'editable': False,  # Disable editable to prevent "Click to enter title" artifacts
     'edits': {
-        'shapePosition': True,  # Allow dragging shapes
+        'shapePosition': False, 
     }
 }
 
