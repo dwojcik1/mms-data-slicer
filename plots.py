@@ -4,6 +4,7 @@ plots.py - Publication-Quality Visualization Module
 Plotly-based visualization with LaTeX labels for scientific publications.
 """
 
+import os
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -955,6 +956,14 @@ def plot_mms_orbit_wrapper(
     
     try:
         from pyspedas.projects.mms import mms_orbit_plot
+        import pyspedas
+        # Ensure PySPEDAS writes to the configured data dir
+        data_dir = os.environ.get("SPEDAS_DATA_DIR")
+        if data_dir:
+            try:
+                pyspedas.config.CONFIG["local_data_dir"] = data_dir
+            except Exception:
+                pass
     except ImportError:
         st.error("Could not import mms_orbit_plot from pyspedas.projects.mms")
         return None

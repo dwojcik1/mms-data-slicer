@@ -6,10 +6,27 @@ Kinetic scale time series processing for space plasma physics.
 
 import streamlit as st
 import os
+import tempfile
+from pathlib import Path
 
-# Configure PySPEDAS download directory to local folder for Streamlit Cloud
+# Configure PySPEDAS download directory to a writable folder (Streamlit Cloud safe)
 # Must be set before importing pyspedas
-os.environ["SPEDAS_DATA_DIR"] = os.path.join(os.getcwd(), "pydata")
+def _configure_spedas_data_dir() -> str:
+    preferred = Path(os.getcwd()) / "pydata"
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+        test_path = preferred / ".spedas_write_test"
+        test_path.write_text("ok")
+        test_path.unlink()
+        data_dir = preferred
+    except Exception:
+        data_dir = Path(tempfile.gettempdir()) / "pyspedas_data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+    return str(data_dir)
+
+_spedas_data_dir = _configure_spedas_data_dir()
+os.environ["SPEDAS_DATA_DIR"] = _spedas_data_dir
+os.environ["MMS_DATA_DIR"] = _spedas_data_dir
 
 import matplotlib
 matplotlib.use('Agg')
