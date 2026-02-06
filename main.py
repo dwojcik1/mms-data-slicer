@@ -1205,12 +1205,11 @@ def render_nasa_download_form():
     try:
         from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
         cdasws_ok = check_cdasws_available()
-    except ImportError as e:
-        st.error(f"Import failed: {e}. Please check dependencies.")
+    except ImportError:
         cdasws_ok = False
     
     if not cdasws_ok:
-        # st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
+        st.error("**Required module not installed.** Run: `pip install cdasws cdflib`")
         return
     
     # Analysis Type Selection
@@ -2241,7 +2240,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
     import pandas as pd
     import plotly.graph_objects as go
     # Ensure physics functions are available
-    from physics import get_pdf_cached, cached_stats, compute_kde
+    from physics import get_pdf_robust, cached_stats, compute_kde
     
     st.markdown("### PDF & Moments")
     
@@ -2302,7 +2301,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
             
             # Histogram Calculation
             if plot_type in ["Histogram", "Combined"]:
-                pdf_res = get_pdf_cached(tuple(clean_data), bins)
+                pdf_res = get_pdf_robust(tuple(clean_data), bins)
                 bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
                 
                 fig.add_trace(go.Bar(

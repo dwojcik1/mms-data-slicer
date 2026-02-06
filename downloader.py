@@ -13,126 +13,7 @@ import tempfile
 import os
 import streamlit as st
 import zipfile
-import concurrent.futures
 from typing import Dict, Any, Tuple
-import httpx
-import asyncio
-import diskcache
-import hashlib
-
-# Initialize persistent disk cache
-CACHE_DIR = os.path.join(os.getcwd(), ".cache", "mms")
-CACHE = diskcache.Cache(CACHE_DIR, size_limit=2e9) # 2GB limit
-
-async def _fetch_url_content(client: httpx.AsyncClient, url: str) -> bytes:
-    """Fetch URL content with disk caching."""
-    if url in CACHE:
-        return CACHE[url]
-    
-    try:
-        response = await client.get(url, follow_redirects=True, timeout=30.0)
-        response.raise_for_status()
-        content = response.content
-        CACHE[url] = content
-        return content
-    except Exception as e:
-        # print(f"Failed to fetch {url}: {e}")
-        return None
-
-async def _process_cdf_generic(client, file_url, var_patterns, epoch_patterns, start_time, end_time):
-    """Generic async helper to download and parse a single CDF file."""
-    if not file_url:
-        return None
-    
-    # Get content (cached or fresh)
-    content = await _fetch_url_content(client, file_url)
-    if content is None:
-        return None
-    
-    # Write to temp file for cdflib
-    with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-        tmp.close()  # Ensure data is flushed to disk!
-    
-    try:
-        cdf = cdflib.CDF(tmp_path)
-        
-        # Find epoch variable
-        epoch_data = None
-        # First try provided patterns
-        for pattern in epoch_patterns:
-            try:
-                epoch_data = cdf.varget(pattern)
-                break
-            except:
-                continue
-        
-        # Fallback: search for any 'epoch' variable
-        if epoch_data is None:
-            info = cdf.cdf_info()
-            for zvar in getattr(info, 'zVariables', []):
-                if 'epoch' in zvar.lower():
-                    epoch_data = cdf.varget(zvar)
-                    break
-        
-        if epoch_data is None:
-            return None
-        
-        # Find field data
-        field_data = None
-        for pattern in var_patterns:
-            try:
-                field_data = cdf.varget(pattern)
-                break
-            except:
-                continue
-        
-        if field_data is None:
-            return None
-        
-        # Convert epoch and filter
-        times = cdflib.cdfepoch.encode(epoch_data)
-        times_np = np.array(times, dtype='datetime64[ns]')
-        start_np = np.datetime64(start_time)
-        end_np = np.datetime64(end_time)
-        
-        mask = (times_np >= start_np) & (times_np <= end_np)
-        times_filtered = times_np[mask]
-        
-        # Handle multi-dimensional data (spectra -> mean) if needed
-        # (This logic was in generic loader, useful to keep generic)
-        if len(field_data.shape) > 2:
-             field_data = np.nanmean(field_data, axis=tuple(range(1, len(field_data.shape)-1)))
-             
-        values_filtered = field_data[mask]
-        
-        if len(times_filtered) > 0:
-            return times_filtered, values_filtered
-        return None
-        
-    except Exception as e:
-        return None
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
-
-async def _load_fgm_async_runner(file_descriptions, probe, data_rate, level, var_name, coord, start_time, end_time):
-    """Runner for async FGM loading."""
-    limits = httpx.Limits(max_keepalive_connections=10, max_connections=10)
-    
-    var_patterns = [var_name, f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"]
-    epoch_patterns = ['Epoch', 'epoch', f'mms{probe}_fgm_epoch_{data_rate}_{level}']
-    
-    async with httpx.AsyncClient(http2=True, limits=limits) as client:
-        tasks = [
-            _process_cdf_generic(
-                client, fd.get('Name'), var_patterns, epoch_patterns, start_time, end_time
-            ) for fd in file_descriptions
-        ]
-        return await asyncio.gather(*tasks)
 
 
 @st.cache_data(show_spinner="Downloading FGM data from NASA CDAWeb...")
@@ -199,27 +80,80 @@ def load_fgm_cdasws(
         raise ValueError(f"No data files available for {dataset}")
 
     
-    # Run async download loop
-    try:
-        results = asyncio.run(_load_fgm_async_runner(
-            file_descriptions, probe, data_rate, level, var_name, coord, start_time, end_time
-        ))
-    except RuntimeError:
-        # Fallback if loop is already running (e.g. in some nested st environments)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        results = loop.run_until_complete(_load_fgm_async_runner(
-            file_descriptions, probe, data_rate, level, var_name, coord, start_time, end_time
-        ))
-        loop.close()
-    
-    # Collect valid results
+    # Download and process each CDF file
     all_times = []
     all_values = []
-    for res in results:
-        if res:
-            all_times.append(res[0])
-            all_values.append(res[1])
+    
+    for file_desc in file_descriptions:
+        file_url = file_desc.get('Name')
+        if not file_url:
+            continue
+        
+        # Download CDF file to temp location
+        import urllib.request
+        
+        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            urllib.request.urlretrieve(file_url, tmp_path)
+            
+            # Read with cdflib
+            cdf = cdflib.CDF(tmp_path)
+            
+            # Get epoch data
+            epoch_data = None
+            for possible_epoch in ['Epoch', 'epoch', f'mms{probe}_fgm_epoch_{data_rate}_{level}']:
+                try:
+                    epoch_data = cdf.varget(possible_epoch)
+                    break
+                except:
+                    continue
+            
+            if epoch_data is None:
+                # Try to find any epoch variable
+                info = cdf.cdf_info()
+                for zvar in getattr(info, 'zVariables', []):
+                    if 'epoch' in zvar.lower():
+                        epoch_data = cdf.varget(zvar)
+                        break
+            
+            if epoch_data is None:
+                continue
+            
+            # Get field data
+            try:
+                field_data = cdf.varget(var_name)
+            except:
+                # Try alternate naming
+                alt_var = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
+                try:
+                    field_data = cdf.varget(alt_var)
+                except:
+                    continue
+            
+            # Convert epoch to datetime - use encode for safe TT2000 conversion (returns ISO strings)
+            times = cdflib.cdfepoch.encode(epoch_data)
+            
+            # Filter to requested time range
+            times_np = np.array(times, dtype='datetime64[ns]')
+            start_np = np.datetime64(start_time)
+            end_np = np.datetime64(end_time)
+            
+            mask = (times_np >= start_np) & (times_np <= end_np)
+            times_filtered = times_np[mask]
+            values_filtered = field_data[mask]
+            
+            if len(times_filtered) > 0:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+            
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
     
     if not all_times:
         raise ValueError(
@@ -389,109 +323,6 @@ def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
     return zip_path, os.path.basename(zip_path)
 
 
-    async def _process_fpi_species(client, species):
-        # ... logic to get file list for species ...
-        # NOTE: logic needs to be largely copied from original sync function
-        # Or better: passed in.
-        pass
-
-async def _load_fpi_async_runner(probe, data_rate, level, coord, start_time, end_time):
-    """Async runner for FPI (both DIS and DES)."""
-    limits = httpx.Limits(max_keepalive_connections=12, max_connections=12)
-    
-    from cdasws import CdasWs 
-    # Use sync cdasws just to get file lists (fast enough usually)
-    # We could potentially use cdasws in thread, but it's lightweight metadata fetch.
-    cdas = CdasWs() 
-    
-    results_dict = {}
-    
-    async with httpx.AsyncClient(http2=True, limits=limits) as client:
-        
-        async def fetch_species(species, label):
-            dataset = f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_{species.upper()}-MOMS"
-            var_name = f"mms{probe}_{species}_bulkv_{coord}_{data_rate}"
-            
-            # Fetch file list (sync logic wrapped)
-            # We accept this small blocking call or run in executor
-            try:
-                loop = asyncio.get_running_loop()
-                status, result = await loop.run_in_executor(
-                    None, 
-                    lambda: cdas.get_data_file(dataset, [var_name], start_time, end_time)
-                )
-            except Exception:
-                return None
-                
-            if not result or 'FileDescription' not in result:
-                return None
-                
-            file_descriptions = result.get('FileDescription', [])
-            if not file_descriptions:
-                return None
-            
-            var_patterns = [var_name]
-            epoch_patterns = ['Epoch', 'epoch', f'mms{probe}_{species}_epoch_{data_rate}']
-            
-            tasks = [
-                _process_cdf_generic(
-                    client, fd.get('Name'), var_patterns, epoch_patterns, start_time, end_time
-                ) for fd in file_descriptions
-            ]
-            
-            # Gather file results
-            file_results = await asyncio.gather(*tasks)
-            
-            # Concatenate
-            all_times = []
-            all_values = []
-            for res in file_results:
-                if res:
-                    all_times.append(res[0])
-                    all_values.append(res[1])
-            
-            if not all_times:
-                return None
-                
-            times = np.concatenate(all_times)
-            values = np.concatenate(all_values)
-            sort_idx = np.argsort(times)
-            times = times[sort_idx]
-            values = values[sort_idx]
-            
-            datetime_index = pd.to_datetime(times)
-            
-            if len(values.shape) == 1:
-                columns = ['Vt']
-                values = values.reshape(-1, 1)
-            elif values.shape[1] == 3:
-                columns = ['Vx', 'Vy', 'Vz']
-            else:
-                columns = [f'V{i}' for i in range(values.shape[1])]
-            
-            df = pd.DataFrame(values, index=datetime_index, columns=columns)
-            df.index.name = 'time'
-            
-            if 'Vt' not in df.columns and 'Vx' in df.columns:
-                df['Vt'] = np.sqrt(df['Vx']**2 + df['Vy']**2 + df['Vz']**2)
-            
-            df = df.replace(-1e31, np.nan)
-            return label, df
-
-        # Run both species concurrently
-        sp_tasks = [
-            fetch_species('dis', 'DIS'),
-            fetch_species('des', 'DES')
-        ]
-        
-        species_results = await asyncio.gather(*sp_tasks)
-        
-        for res in species_results:
-            if res:
-                results_dict[res[0]] = res[1]
-                
-    return results_dict
-
 @st.cache_data(show_spinner="Downloading FPI data from NASA CDAWeb...")
 def load_fpi_cdasws(
     trange: List[str],
@@ -503,6 +334,19 @@ def load_fpi_cdasws(
 
     """
     Download MMS FPI (Fast Plasma Investigation) data using CDAWeb API.
+    
+    Downloads both DIS (ion) and DES (electron) bulk velocity moments.
+    
+    Args:
+        trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
+        probe: MMS spacecraft number ('1', '2', '3', or '4')
+        data_rate: Data rate ('fast' or 'brst')
+        level: Data level ('l2')
+        coord: Coordinate system ('gse', 'gsm', 'dbcs')
+    
+    Returns:
+        Dictionary with keys 'DIS' (ions) and 'DES' (electrons), each containing
+        a DataFrame with DatetimeIndex and columns ['Vx', 'Vy', 'Vz', 'Vt']
     """
     try:
         from cdasws import CdasWs
@@ -510,24 +354,142 @@ def load_fpi_cdasws(
     except ImportError as e:
         raise ImportError(f"Required modules not installed: {e}")
     
+    cdas = CdasWs()
     start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
     end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
     
-    # Run async download loop
-    try:
-        results = asyncio.run(_load_fpi_async_runner(
-            probe, data_rate, level, coord, start_time, end_time
-        ))
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        results = loop.run_until_complete(_load_fpi_async_runner(
-            probe, data_rate, level, coord, start_time, end_time
-        ))
-        loop.close()
+    results = {}
+    
+    # Download both DIS (ions) and DES (electrons)
+    for species, label in [('dis', 'DIS'), ('des', 'DES')]:
+        # Dataset: MMS1_FPI_FAST_L2_DIS-MOMS or MMS1_FPI_FAST_L2_DES-MOMS
+        dataset = f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_{species.upper()}-MOMS"
         
+        # Variable: mms1_dis_bulkv_gse_fast or mms1_des_bulkv_gse_fast
+        var_name = f"mms{probe}_{species}_bulkv_{coord}_{data_rate}"
+        
+        try:
+            status_code, result = cdas.get_data_file(
+                dataset,
+                [var_name],
+                start_time,
+                end_time
+            )
+        except Exception as e:
+            warnings.warn(f"Failed to get {label} data: {e}")
+            continue
+        
+        if not result or 'FileDescription' not in result:
+            warnings.warn(f"No {label} files found for {dataset}")
+            continue
+        
+        file_descriptions = result.get('FileDescription', [])
+        if not file_descriptions:
+            continue
+        
+        all_times = []
+        all_values = []
+        
+        import urllib.request
+        
+        for file_desc in file_descriptions:
+            file_url = file_desc.get('Name')
+            if not file_url:
+                continue
+            
+            with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+                tmp_path = tmp.name
+            
+            try:
+                urllib.request.urlretrieve(file_url, tmp_path)
+                cdf = cdflib.CDF(tmp_path)
+                
+                # Find epoch variable
+                epoch_data = None
+                epoch_patterns = [
+                    f'Epoch',
+                    f'mms{probe}_{species}_epoch_{data_rate}',
+                    'epoch'
+                ]
+                
+                for pattern in epoch_patterns:
+                    try:
+                        epoch_data = cdf.varget(pattern)
+                        break
+                    except:
+                        continue
+                
+                if epoch_data is None:
+                    info = cdf.cdf_info()
+                    for zvar in getattr(info, 'zVariables', []):
+                        if 'epoch' in zvar.lower():
+                            epoch_data = cdf.varget(zvar)
+                            break
+                
+                if epoch_data is None:
+                    continue
+                
+                # Get velocity data
+                try:
+                    vel_data = cdf.varget(var_name)
+                except:
+                    continue
+                
+                # Convert epoch to datetime - use encode for safe TT2000 conversion
+                times = cdflib.cdfepoch.encode(epoch_data)
+                times_np = np.array(times, dtype='datetime64[ns]')
+                start_np = np.datetime64(start_time)
+                end_np = np.datetime64(end_time)
+                
+                mask = (times_np >= start_np) & (times_np <= end_np)
+                times_filtered = times_np[mask]
+                values_filtered = vel_data[mask]
+                
+                if len(times_filtered) > 0:
+                    all_times.append(times_filtered)
+                    all_values.append(values_filtered)
+                
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except:
+                    pass
+        
+        if not all_times:
+            warnings.warn(f"No {label} data found in time range")
+            continue
+        
+        # Concatenate and sort
+        times = np.concatenate(all_times)
+        values = np.concatenate(all_values)
+        sort_idx = np.argsort(times)
+        times = times[sort_idx]
+        values = values[sort_idx]
+        
+        # Create DataFrame
+        datetime_index = pd.to_datetime(times)
+        
+        if len(values.shape) == 1:
+            columns = ['Vt']
+            values = values.reshape(-1, 1)
+        elif values.shape[1] == 3:
+            columns = ['Vx', 'Vy', 'Vz']
+        else:
+            columns = [f'V{i}' for i in range(values.shape[1])]
+        
+        df = pd.DataFrame(values, index=datetime_index, columns=columns)
+        df.index.name = 'time'
+        
+        # Add magnitude if not present
+        if 'Vt' not in df.columns and 'Vx' in df.columns:
+            df['Vt'] = np.sqrt(df['Vx']**2 + df['Vy']**2 + df['Vz']**2)
+        
+        # Clean fill values
+        df = df.replace(-1e31, np.nan)
+        
+        results[label] = df
+    
     if not results:
-        # Fallback for empty results (but usually the runner returns empty dict)
         raise ValueError(
             f"No FPI data found for MMS{probe} ({data_rate}/{level}) "
             f"in range {trange[0]} to {trange[1]}"
@@ -721,75 +683,129 @@ def _download_cdf_and_extract(
     if not file_descriptions:
         raise ValueError(f"No data files available for {dataset}")
     
-    async def _download_generic_async_runner(file_descriptions, var_patterns, epoch_patterns, columns, start_time, end_time):
-        limits = httpx.Limits(max_keepalive_connections=8, max_connections=8)
-        async with httpx.AsyncClient(http2=True, limits=limits) as client:
-            tasks = [
-                _process_cdf_generic(
-                    client, fd.get('Name'), var_patterns, epoch_patterns, start_time, end_time
-                ) for fd in file_descriptions
-            ]
-            file_results = await asyncio.gather(*tasks)
-            
-        all_times = []
-        all_values = []
-        for res in file_results:
-            if res:
-                all_times.append(res[0])
-                all_values.append(res[1])
-        
-        if not all_times:
-            return None
-        
-        times = np.concatenate(all_times)
-        values = np.concatenate(all_values)
-        sort_idx = np.argsort(times)
-        times = times[sort_idx]
-        values = values[sort_idx]
-        
-        datetime_index = pd.to_datetime(times)
-        
-        if len(values.shape) == 1:
-            values = values.reshape(-1, 1)
-        
-        if values.shape[1] >= len(columns):
-            cols = columns[:values.shape[1]]
-        else:
-            cols = columns + [f'col{i}' for i in range(len(columns), values.shape[1])]
-        
-        df = pd.DataFrame(values[:, :len(cols)], index=datetime_index, columns=cols)
-        df.index.name = 'time'
-        
-        df = df.replace(-1e31, np.nan)
-        df = df.replace(1e31, np.nan)
-        
-        if len(cols) >= 3 and cols[0] in ['Bx', 'Ex', 'X', 'Vx']:
-            mag_col = 'Bt' if 'Bx' in cols else 'Et' if 'Ex' in cols else 'R' if 'X' in cols else 'Vt'
-            if mag_col not in df.columns:
-                df[mag_col] = np.sqrt(df.iloc[:, 0]**2 + df.iloc[:, 1]**2 + df.iloc[:, 2]**2)
-        
-        return df
-
-    # Run async download loop
-    try:
-        epoch_patterns = ['Epoch', 'epoch']
-        # Add basic pattern detection if possible (though we don't know rate/level easily if not passed)
-        # Assuming regex or loose match in generic processor is enough OR strict match
-        
-        df = asyncio.run(_download_generic_async_runner(
-            file_descriptions, var_names, epoch_patterns, columns, start_time, end_time
-        ))
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        df = loop.run_until_complete(_download_generic_async_runner(
-            file_descriptions, var_names, epoch_patterns, columns, start_time, end_time
-        ))
-        loop.close()
+    import urllib.request
+    all_times = []
+    all_values = []
     
-    if df is None or df.empty:
-        raise ValueError(f"No data extracted from {dataset}")
+    for file_desc in file_descriptions:
+        file_url = file_desc.get('Name')
+        if not file_url:
+            continue
         
+        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            urllib.request.urlretrieve(file_url, tmp_path)
+            cdf = cdflib.CDF(tmp_path)
+            
+            # Find epoch variable
+            epoch_data = None
+            info = cdf.cdf_info()
+            for zvar in getattr(info, 'zVariables', []):
+                if 'epoch' in zvar.lower():
+                    try:
+                        epoch_data = cdf.varget(zvar)
+                        break
+                    except:
+                        continue
+            
+            if epoch_data is None:
+                continue
+            
+            # Try each var pattern
+            field_data = None
+            for var_name in var_names:
+                try:
+                    field_data = cdf.varget(var_name)
+                    break
+                except:
+                    continue
+            
+            # If still nothing, try to find a matching variable
+            if field_data is None:
+                for zvar in getattr(info, 'zVariables', []):
+                    for pattern in var_patterns:
+                        # Simple pattern matching
+                        base = pattern.split('{')[0]
+                        if base and base in zvar.lower():
+                            try:
+                                test_data = cdf.varget(zvar)
+                                if test_data is not None and len(test_data) > 0:
+                                    field_data = test_data
+                                    break
+                            except:
+                                continue
+                    if field_data is not None:
+                        break
+            
+            if field_data is None:
+                continue
+            
+            # Convert epoch to datetime - use encode for safe TT2000 conversion
+            times = cdflib.cdfepoch.encode(epoch_data)
+            times_np = np.array(times, dtype='datetime64[ns]')
+            
+            # Filter to time range
+            start_np = np.datetime64(start_time)
+            end_np = np.datetime64(end_time)
+            mask = (times_np >= start_np) & (times_np <= end_np)
+            
+            times_filtered = times_np[mask]
+            
+            # Handle multi-dimensional data (spectra -> mean over energy)
+            if len(field_data.shape) > 2:
+                # Average over energy dimension for spectra
+                field_data = np.nanmean(field_data, axis=tuple(range(1, len(field_data.shape)-1)))
+            
+            values_filtered = field_data[mask]
+            
+            if len(times_filtered) > 0:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+            
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+    
+    if not all_times:
+        raise ValueError(f"No data extracted from {dataset}")
+    
+    # Concatenate and sort
+    times = np.concatenate(all_times)
+    values = np.concatenate(all_values)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+    
+    # Create DataFrame
+    datetime_index = pd.to_datetime(times)
+    
+    # Handle shape
+    if len(values.shape) == 1:
+        values = values.reshape(-1, 1)
+    
+    # Use provided columns or generate
+    if values.shape[1] >= len(columns):
+        cols = columns[:values.shape[1]]
+    else:
+        cols = columns + [f'col{i}' for i in range(len(columns), values.shape[1])]
+    
+    df = pd.DataFrame(values[:, :len(cols)], index=datetime_index, columns=cols)
+    df.index.name = 'time'
+    
+    # Clean fill values
+    df = df.replace(-1e31, np.nan)
+    df = df.replace(1e31, np.nan)
+    
+    # Add magnitude for vector data
+    if len(cols) >= 3 and cols[0] in ['Bx', 'Ex', 'X', 'Vx']:
+        mag_col = 'Bt' if 'Bx' in cols else 'Et' if 'Ex' in cols else 'R' if 'X' in cols else 'Vt'
+        if mag_col not in df.columns:
+            df[mag_col] = np.sqrt(df.iloc[:, 0]**2 + df.iloc[:, 1]**2 + df.iloc[:, 2]**2)
+    
     return df
 
 

@@ -669,17 +669,43 @@ def find_target_alpha_range(
 
 
 @st.cache_data(show_spinner=False)
-def get_pdf_cached(data_tuple: tuple, bins: int = 50) -> PDFResult:
-    """Cached wrapper for PDF computation."""
+def get_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
+    """
+    Cached wrapper for PDF computation with strict shape validation.
+    Prevents broadcasting errors by ensuring bin_centers and density match.
+    """
     data = np.array(data_tuple)
+    
+    # Handle singular or empty data
+    if len(data) == 0 or np.ptp(data) == 0:
+        return PDFResult(
+            bin_centers=np.array([]),
+            density=np.array([]),
+            bin_edges=np.array([]),
+            n_samples=len(data),
+            n_bins=bins
+        )
+
+    # Compute Histogram
     hist, bin_edges = np.histogram(data, bins=bins, density=True)
+    
+    # Calculate Centers
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    
+    # STRICT VALIDATION: Ensure lengths match
+    if len(hist) != len(bin_centers):
+        # Fallback: trim to match the smaller length (though numpy usually guarantees match)
+        min_len = min(len(hist), len(bin_centers))
+        hist = hist[:min_len]
+        bin_centers = bin_centers[:min_len]
+        bin_edges = bin_edges[:min_len+1]
+        
     return PDFResult(
         bin_centers=bin_centers,
         density=hist,
         bin_edges=bin_edges,
         n_samples=len(data),
-        n_bins=bins
+        n_bins=len(hist) # Actual bins used
     )
 
 
