@@ -10,7 +10,7 @@ astropy==7.2.0
 astropy-iers-data==0.2026.1.19.0.42.31
 attrs==25.4.0
 blinker==1.9.0
-bokeh==2.4.3
+bokeh==3.8.2
 boto3==1.40.61
 botocore==1.40.61
 cachetools==6.2.4
