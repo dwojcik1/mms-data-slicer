@@ -1203,7 +1203,7 @@ def render_nasa_download_form():
     
     # Check if cdasws is available
     try:
-        from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
+        from downloader import check_cdasws_available, load_fgm_cdasws, load_fgm_cdasws_progressive, load_fpi_cdasws, load_fpi_cdasws_progressive, format_trange
         cdasws_ok = check_cdasws_available()
     except ImportError:
         cdasws_ok = False
@@ -1389,40 +1389,131 @@ def render_nasa_download_form():
             
             trange = format_trange(start_date, start_time, end_date, end_time)
             
-            with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
-                try:
-                    # Import universal loader
-                    from downloader import load_mms_universal
+            # Create containers for progressive UI updates
+            progress_container = st.empty()
+            plot_container = st.empty()
+            status_container = st.empty()
+            
+            try:
+                # Show initial status
+                progress_container.info("🚀 Starting download from NASA CDAWeb...")
+                
+                if instrument_key.lower() == 'fgm':
+                    # Use progressive loading for FGM
+                    from downloader import load_fgm_cdasws_progressive
+                    from plots import plot_magnetic_field, PLOTLY_CONFIG
                     
-                    # Call universal loader with all parameters
-                    datasets = load_mms_universal(
-                        instrument=instrument_key,
+                    # Create a progress bar
+                    progress_bar = st.progress(0)
+                    
+                    for df, files_completed, total_files in load_fgm_cdasws_progressive(
                         trange=trange,
                         probe=probe,
                         data_rate=data_rate if data_rate else 'srvy',
                         level=level if level else 'l2',
                         coord=coord if coord else 'gse',
-                        datatype=datatype if datatype else ''
-                    )
+                        update_interval=1
+                    ):
+                        # Update progress
+                        progress = files_completed / total_files
+                        progress_bar.progress(min(progress, 0.99))
+                        status_container.text(f"📥 Downloaded {files_completed}/{total_files} files... ({len(df):,} data points so far)")
+                        
+                        # Update plot in real-time
+                        if len(df) > 0:
+                            # Generate dynamic title
+                            start_dt = df.index[0]
+                            end_dt = df.index[-1]
+                            
+                            if start_dt.date() == end_dt.date():
+                                date_str = start_dt.strftime('%d %B %Y')
+                                time_range = f"{start_dt.strftime('%H:%M:%S')} – {end_dt.strftime('%H:%M:%S')}"
+                                title = f"MMS {probe} | B | {coord.upper() if coord else 'GSE'} | {date_str} | {time_range}"
+                            else:
+                                start_str = start_dt.strftime('%d %b %Y %H:%M')
+                                end_str = end_dt.strftime('%d %b %Y %H:%M')
+                                title = f"MMS {probe} | B | {coord.upper() if coord else 'GSE'} | {start_str} – {end_str}"
+                            
+                            fig = plot_magnetic_field(df, title=title, height=550)
+                            plot_container.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                     
-                    st.session_state.data = datasets
-                    st.session_state.data_loaded = True
-                    st.session_state.download_info = {
-                        'probe': probe,
-                        'data_rate': data_rate if data_rate else '',
-                        'level': level if level else '',
-                        'coord': coord.upper() if coord else '',
-                        'datatype': datatype if datatype else '',
-                        'trange': trange,
-                        'instrument': instrument_key.upper()
-                    }
+                    # Final update
+                    progress_bar.empty()
+                    datasets = {'FGM': df}
                     
-                    total_pts = sum(len(v) for v in st.session_state.data.values())
-                    st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
-                    st.rerun()
+                elif instrument_key.lower() == 'fpi':
+                    # Use progressive loading for FPI
+                    from downloader import load_fpi_cdasws_progressive
+                    from plots import plot_velocity_field, PLOTLY_CONFIG
                     
-                except Exception as e:
-                    st.error(f"Download failed: {e}")
+                    fpi_plots = {}
+                    
+                    for results, completed, total in load_fpi_cdasws_progressive(
+                        trange=trange,
+                        probe=probe,
+                        data_rate=data_rate if data_rate else 'fast',
+                        level=level if level else 'l2',
+                        coord=coord if coord else 'gse'
+                    ):
+                        status_container.text(f"📥 Downloaded {completed}/{total} datasets...")
+                        
+                        # Update plots as data arrives
+                        for key, df in results.items():
+                            if len(df) > 0 and key not in fpi_plots:
+                                start_dt = df.index[0]
+                                end_dt = df.index[-1]
+                                
+                                if start_dt.date() == end_dt.date():
+                                    date_str = start_dt.strftime('%d %B %Y')
+                                    title = f"MMS {probe} | {'Electron' if key == 'DES' else 'Ion'} Bulk Velocity | {coord.upper() if coord else 'GSE'} | {date_str}"
+                                else:
+                                    start_str = start_dt.strftime('%d %b %Y %H:%M')
+                                    end_str = end_dt.strftime('%d %b %Y %H:%M')
+                                    title = f"MMS {probe} | {'Electron' if key == 'DES' else 'Ion'} Bulk Velocity | {coord.upper() if coord else 'GSE'} | {start_str} – {end_str}"
+                                
+                                species = 'electron' if key == 'DES' else 'ion'
+                                fig = plot_velocity_field(df, title=title, species=species, height=450)
+                                fpi_plots[key] = st.plotly_chart(fig, use_container_width=True, key=f"fpi_{key}")
+                    
+                    datasets = results
+                    
+                else:
+                    # Fall back to regular loading for other instruments
+                    with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data..."):
+                        from downloader import load_mms_universal
+                        datasets = load_mms_universal(
+                            instrument=instrument_key,
+                            trange=trange,
+                            probe=probe,
+                            data_rate=data_rate if data_rate else 'srvy',
+                            level=level if level else 'l2',
+                            coord=coord if coord else 'gse',
+                            datatype=datatype if datatype else ''
+                        )
+                
+                # Store data in session state
+                st.session_state.data = datasets
+                st.session_state.data_loaded = True
+                st.session_state.download_info = {
+                    'probe': probe,
+                    'data_rate': data_rate if data_rate else '',
+                    'level': level if level else '',
+                    'coord': coord.upper() if coord else '',
+                    'datatype': datatype if datatype else '',
+                    'trange': trange,
+                    'instrument': instrument_key.upper()
+                }
+                
+                total_pts = sum(len(v) for v in st.session_state.data.values())
+                progress_container.success(f"✅ Complete! Loaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                status_container.empty()
+                
+                # Keep the final plots visible
+                st.rerun()
+                
+            except Exception as e:
+                progress_container.error(f"❌ Download failed: {e}")
+                status_container.empty()
             
         # Disclaimer Note (Time Series)
         st.markdown(
