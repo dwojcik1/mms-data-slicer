@@ -1,2 +1,0 @@
-libnetcdf-dev
-libhdf5-dev
