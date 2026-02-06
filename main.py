@@ -1203,7 +1203,7 @@ def render_nasa_download_form():
     
     # Check if cdasws is available
     try:
-        from downloader import check_cdasws_available, load_fgm_cdasws, load_fgm_cdasws_progressive, load_fpi_cdasws, load_fpi_cdasws_progressive, format_trange
+        from downloader import check_cdasws_available, load_fgm_cdasws, load_fpi_cdasws, format_trange
         cdasws_ok = check_cdasws_available()
     except ImportError:
         cdasws_ok = False
@@ -1389,87 +1389,40 @@ def render_nasa_download_form():
             
             trange = format_trange(start_date, start_time, end_date, end_time)
             
-            # Create progress container for progressive loading
-            progress_container = st.empty()
-            
-            try:
-                # Show initial status
-                progress_container.info(f"🚀 Starting download for MMS{probe} {instrument_key.upper()} data...")
-                
-                # Import progressive loader for FGM and FPI
-                if instrument_key.lower() == 'fgm':
-                    # Create progress UI inside a container
-                    progress_ui = st.container()
-                    progress_ui.markdown("### 📥 Download Progress")
+            with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
+                try:
+                    # Import universal loader
+                    from downloader import load_mms_universal
                     
-                    # Call progressive loader for FGM
-                    df = load_fgm_cdasws_progressive(
+                    # Call universal loader with all parameters
+                    datasets = load_mms_universal(
+                        instrument=instrument_key,
                         trange=trange,
                         probe=probe,
                         data_rate=data_rate if data_rate else 'srvy',
                         level=level if level else 'l2',
                         coord=coord if coord else 'gse',
-                        progress_container=progress_ui
+                        datatype=datatype if datatype else ''
                     )
                     
-                    datasets = {'FGM': df}
+                    st.session_state.data = datasets
+                    st.session_state.data_loaded = True
+                    st.session_state.download_info = {
+                        'probe': probe,
+                        'data_rate': data_rate if data_rate else '',
+                        'level': level if level else '',
+                        'coord': coord.upper() if coord else '',
+                        'datatype': datatype if datatype else '',
+                        'trange': trange,
+                        'instrument': instrument_key.upper()
+                    }
                     
-                elif instrument_key.lower() == 'fpi':
-                    # Create progress UI inside a container
-                    progress_ui = st.container()
-                    progress_ui.markdown("### 📥 Download Progress")
-                    progress_ui.caption("Downloading both ion (DIS) and electron (DES) data in parallel...")
+                    total_pts = sum(len(v) for v in st.session_state.data.values())
+                    st.success(f"Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
+                    st.rerun()
                     
-                    # Call progressive loader for FPI
-                    datasets = load_fpi_cdasws_progressive(
-                        trange=trange,
-                        probe=probe,
-                        data_rate=data_rate if data_rate else 'fast',
-                        level=level if level else 'l2',
-                        coord=coord if coord else 'gse',
-                        progress_container=progress_ui
-                    )
-                    
-                else:
-                    # For other instruments, use standard loader with spinner
-                    with st.spinner(f"Downloading MMS{probe} {instrument_key.upper()} data from NASA CDAWeb..."):
-                        from downloader import load_mms_universal
-                        
-                        datasets = load_mms_universal(
-                            instrument=instrument_key,
-                            trange=trange,
-                            probe=probe,
-                            data_rate=data_rate if data_rate else 'srvy',
-                            level=level if level else 'l2',
-                            coord=coord if coord else 'gse',
-                            datatype=datatype if datatype else ''
-                        )
-                
-                # Clear progress container
-                progress_container.empty()
-                
-                st.session_state.data = datasets
-                st.session_state.data_loaded = True
-                st.session_state.download_info = {
-                    'probe': probe,
-                    'data_rate': data_rate if data_rate else '',
-                    'level': level if level else '',
-                    'coord': coord.upper() if coord else '',
-                    'datatype': datatype if datatype else '',
-                    'trange': trange,
-                    'instrument': instrument_key.upper()
-                }
-                
-                total_pts = sum(len(v) for v in st.session_state.data.values())
-                st.success(f"✅ Downloaded {total_pts:,} data points ({len(st.session_state.data)} dataset(s))")
-                st.rerun()
-                
-            except Exception as e:
-                import traceback
-                progress_container.empty()
-                st.error(f"Download failed: {e}")
-                with st.expander("Error Details"):
-                    st.code(traceback.format_exc())
+                except Exception as e:
+                    st.error(f"Download failed: {e}")
             
         # Disclaimer Note (Time Series)
         st.markdown(
