@@ -13,7 +13,7 @@ import tempfile
 import os
 import streamlit as st
 import zipfile
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from requests.adapters import HTTPAdapter
@@ -28,15 +28,36 @@ def _download_and_process_cdf(
     data_rate: str,
     level: str,
     coord: str,
-    var_name: str
+    var_name: str,
+    progress_callback: Optional[Callable[[str, int, int], None]] = None,
+    file_index: int = 0,
+    total_files: int = 1
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Download and process a single CDF file.
+    
+    Args:
+        file_url: URL of the CDF file to download
+        start_time: Start time for filtering
+        end_time: End time for filtering
+        probe: MMS spacecraft number
+        data_rate: Data rate ('srvy', 'brst', etc.)
+        level: Data level ('l2', 'l1b', etc.)
+        coord: Coordinate system ('gse', 'gsm', etc.)
+        var_name: Variable name to extract
+        progress_callback: Optional callback function(status_msg, current, total)
+        file_index: Index of current file (for progress reporting)
+        total_files: Total number of files (for progress reporting)
     
     Returns:
         Tuple of (times_filtered, values_filtered) or (None, None) on error
     """
     import cdflib
+    
+    filename = file_url.split('/')[-1] if '/' in file_url else file_url
+    
+    if progress_callback:
+        progress_callback(f"Downloading {filename}...", file_index, total_files)
     
     # Create session with retry strategy and connection pooling
     session = requests.Session()
@@ -55,6 +76,9 @@ def _download_and_process_cdf(
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
+        
+        if progress_callback:
+            progress_callback(f"Processing {filename}...", file_index + 0.5, total_files)
         
         # Read with cdflib
         cdf = cdflib.CDF(tmp_path)
@@ -103,11 +127,15 @@ def _download_and_process_cdf(
         values_filtered = field_data[mask]
         
         if len(times_filtered) > 0:
+            if progress_callback:
+                progress_callback(f"✓ {filename} loaded ({len(times_filtered)} points)", file_index + 1, total_files)
             return times_filtered, values_filtered
         return None, None
         
     except Exception as e:
         warnings.warn(f"Failed to process file {file_url}: {e}")
+        if progress_callback:
+            progress_callback(f"✗ {filename} failed: {str(e)[:50]}", file_index, total_files)
         return None, None
     finally:
         # Clean up temp file
@@ -250,6 +278,164 @@ def load_fgm_cdasws(
     
     # Clean fill values
     df = df.replace(-1e31, np.nan)
+    
+    return df
+
+
+def load_fgm_cdasws_progressive(
+    trange: List[str],
+    probe: str = '1',
+    data_rate: str = 'srvy',
+    level: str = 'l2',
+    coord: str = 'gse',
+    progress_container = None
+) -> pd.DataFrame:
+    """
+    Download MMS FGM data with real-time progress updates.
+    
+    This version does NOT cache and shows progress as each file downloads.
+    Use this for better UX in the web app.
+    
+    Args:
+        trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
+        probe: MMS spacecraft number ('1', '2', '3', or '4')
+        data_rate: Data rate ('brst', 'fast', 'slow', 'srvy')
+        level: Data level ('l2', 'l1b', 'ql')
+        coord: Coordinate system ('gse', 'gsm', 'dmpa', 'bcs')
+        progress_container: Streamlit container for progress updates
+    
+    Returns:
+        DataFrame with DatetimeIndex and columns ['Bx', 'By', 'Bz', 'Bt']
+    """
+    try:
+        from cdasws import CdasWs
+        import cdflib
+        import streamlit as st
+    except ImportError as e:
+        raise ImportError(f"Required modules not installed: {e}")
+    
+    # Initialize CDAWeb client
+    cdas = CdasWs()
+    
+    # Construct dataset ID
+    dataset = f"MMS{probe}_FGM_{data_rate.upper()}_{level.upper()}"
+    var_name = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
+    
+    # Parse time range
+    start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
+    
+    # Get file list
+    try:
+        status_code, result = cdas.get_data_file(
+            dataset,
+            [var_name],
+            start_time,
+            end_time
+        )
+    except Exception as e:
+        raise ValueError(f"Failed to get file list from CDAWeb: {e}")
+    
+    if not result or 'FileDescription' not in result:
+        raise ValueError(f"No data files found for {dataset} in range {trange}")
+    
+    file_descriptions = result.get('FileDescription', [])
+    if not file_descriptions:
+        raise ValueError(f"No data files available for {dataset}")
+    
+    total_files = len([f for f in file_descriptions if f.get('Name')])
+    
+    # Create progress UI
+    if progress_container is not None:
+        progress_bar = progress_container.progress(0)
+        status_text = progress_container.empty()
+        file_status = progress_container.empty()
+    else:
+        progress_bar = None
+        status_text = None
+        file_status = None
+    
+    all_times = []
+    all_values = []
+    completed = 0
+    
+    def update_progress(msg: str, current: float, total: int):
+        nonlocal completed
+        if progress_bar is not None:
+            progress = min(current / total, 1.0)
+            progress_bar.progress(progress)
+        if status_text is not None:
+            status_text.text(f"📊 {msg}")
+        if file_status is not None and '✓' in msg:
+            completed += 1
+            file_status.success(f"✓ File {completed}/{total}: {msg}")
+        elif file_status is not None and '✗' in msg:
+            file_status.error(msg)
+    
+    # Download files with progress updates
+    with ThreadPoolExecutor(max_workers=min(4, total_files)) as executor:
+        future_to_idx = {
+            executor.submit(
+                _download_and_process_cdf,
+                file_desc.get('Name'),
+                start_time,
+                end_time,
+                probe,
+                data_rate,
+                level,
+                coord,
+                var_name,
+                update_progress,
+                idx,
+                total_files
+            ): idx
+            for idx, file_desc in enumerate(file_descriptions)
+            if file_desc.get('Name')
+        }
+        
+        for future in as_completed(future_to_idx):
+            times_filtered, values_filtered = future.result()
+            if times_filtered is not None and values_filtered is not None:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+    
+    if not all_times:
+        raise ValueError(
+            f"No FGM data found for MMS{probe} ({data_rate}/{level}) "
+            f"in range {trange[0]} to {trange[1]}"
+        )
+    
+    # Concatenate and sort
+    times = np.concatenate(all_times)
+    values = np.concatenate(all_values)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+    
+    # Create DataFrame
+    datetime_index = pd.to_datetime(times)
+    
+    if len(values.shape) == 1:
+        columns = ['Bt']
+        values = values.reshape(-1, 1)
+    elif values.shape[1] == 3:
+        columns = ['Bx', 'By', 'Bz']
+    elif values.shape[1] == 4:
+        columns = ['Bx', 'By', 'Bz', 'Bt']
+    else:
+        columns = [f'B{i}' for i in range(values.shape[1])]
+    
+    df = pd.DataFrame(values, index=datetime_index, columns=columns)
+    df.index.name = 'time'
+    
+    if 'Bt' not in df.columns and 'Bx' in df.columns:
+        df['Bt'] = np.sqrt(df['Bx']**2 + df['By']**2 + df['Bz']**2)
+    
+    df = df.replace(-1e31, np.nan)
+    
+    # Final success message
+    if status_text is not None:
+        status_text.success(f"✅ Downloaded {len(df):,} data points from {total_files} file(s)")
     
     return df
 
@@ -611,6 +797,268 @@ def load_fpi_cdasws(
         )
     
     return results
+
+
+def load_fpi_cdasws_progressive(
+    trange: List[str],
+    probe: str = '1',
+    data_rate: str = 'fast',
+    level: str = 'l2',
+    coord: str = 'gse',
+    progress_container=None
+) -> dict:
+    """
+    Download MMS FPI data with real-time progress updates.
+    
+    This version does NOT cache and shows progress as each species downloads.
+    Downloads DIS (ions) and DES (electrons) in parallel with progress tracking.
+    
+    Args:
+        trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
+        probe: MMS spacecraft number ('1', '2', '3', or '4')
+        data_rate: Data rate ('fast' or 'brst')
+        level: Data level ('l2')
+        coord: Coordinate system ('gse', 'gsm', 'dbcs')
+        progress_container: Streamlit container for progress updates
+    
+    Returns:
+        Dictionary with keys 'DIS' (ions) and 'DES' (electrons), each containing
+        a DataFrame with DatetimeIndex and columns ['Vx', 'Vy', 'Vz', 'Vt']
+    """
+    import streamlit as st
+    
+    start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
+    
+    results = {}
+    species_list = [('dis', 'DIS'), ('des', 'DES')]
+    
+    # Create progress UI
+    if progress_container is not None:
+        progress_bar = progress_container.progress(0)
+        status_text = progress_container.empty()
+        dis_status = progress_container.empty()
+        des_status = progress_container.empty()
+    else:
+        progress_bar = None
+        status_text = None
+        dis_status = None
+        des_status = None
+    
+    def update_species_progress(species: str, msg: str):
+        if species == 'dis' and dis_status is not None:
+            if '✓' in msg:
+                dis_status.success(f"🟢 Ions (DIS): {msg}")
+            elif '✗' in msg:
+                dis_status.error(f"🔴 Ions (DIS): {msg}")
+            else:
+                dis_status.info(f"🟡 Ions (DIS): {msg}")
+        elif species == 'des' and des_status is not None:
+            if '✓' in msg:
+                des_status.success(f"🟢 Electrons (DES): {msg}")
+            elif '✗' in msg:
+                des_status.error(f"🔴 Electrons (DES): {msg}")
+            else:
+                des_status.info(f"🟡 Electrons (DES): {msg}")
+    
+    completed = 0
+    total_species = len(species_list)
+    
+    # Download both species with progress tracking
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_to_species = {
+            executor.submit(
+                _download_fpi_species_with_progress,
+                species,
+                label,
+                probe,
+                data_rate,
+                level,
+                coord,
+                start_time,
+                end_time,
+                update_species_progress
+            ): (species, label)
+            for species, label in species_list
+        }
+        
+        for future in as_completed(future_to_species):
+            label, df = future.result()
+            if df is not None:
+                results[label] = df
+                completed += 1
+                if progress_bar is not None:
+                    progress_bar.progress(completed / total_species)
+    
+    if not results:
+        raise ValueError(
+            f"No FPI data found for MMS{probe} ({data_rate}/{level}) "
+            f"in range {trange[0]} to {trange[1]}"
+        )
+    
+    # Final success message
+    if status_text is not None:
+        total_pts = sum(len(df) for df in results.values())
+        status_text.success(f"✅ Downloaded {total_pts:,} data points ({len(results)} species)")
+    
+    return results
+
+
+def _download_fpi_species_with_progress(
+    species: str,
+    label: str,
+    probe: str,
+    data_rate: str,
+    level: str,
+    coord: str,
+    start_time: datetime,
+    end_time: datetime,
+    progress_callback: Callable[[str, str], None]
+) -> Tuple[str, Optional[pd.DataFrame]]:
+    """Download FPI species with progress callbacks."""
+    try:
+        from cdasws import CdasWs
+        import cdflib
+    except ImportError as e:
+        progress_callback(species, f"✗ Module error: {e}")
+        return label, None
+    
+    cdas = CdasWs()
+    dataset = f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_{species.upper()}-MOMS"
+    var_name = f"mms{probe}_{species}_bulkv_{coord}_{data_rate}"
+    
+    progress_callback(species, f"Requesting file list from CDAWeb...")
+    
+    try:
+        status_code, result = cdas.get_data_file(
+            dataset,
+            [var_name],
+            start_time,
+            end_time
+        )
+    except Exception as e:
+        progress_callback(species, f"✗ Failed to get files: {e}")
+        return label, None
+    
+    if not result or 'FileDescription' not in result:
+        progress_callback(species, f"✗ No files found")
+        return label, None
+    
+    file_descriptions = result.get('FileDescription', [])
+    if not file_descriptions:
+        progress_callback(species, f"✗ No files available")
+        return label, None
+    
+    all_times = []
+    all_values = []
+    total_files = len(file_descriptions)
+    
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    
+    for idx, file_desc in enumerate(file_descriptions):
+        file_url = file_desc.get('Name')
+        if not file_url:
+            continue
+        
+        filename = file_url.split('/')[-1] if '/' in file_url else file_url
+        progress_callback(species, f"Downloading {filename} ({idx+1}/{total_files})...")
+        
+        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            response = session.get(file_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            with open(tmp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            
+            progress_callback(species, f"Processing {filename}...")
+            
+            cdf = cdflib.CDF(tmp_path)
+            
+            epoch_data = None
+            epoch_patterns = [f'Epoch', f'mms{probe}_{species}_epoch_{data_rate}', 'epoch']
+            
+            for pattern in epoch_patterns:
+                try:
+                    epoch_data = cdf.varget(pattern)
+                    break
+                except:
+                    continue
+            
+            if epoch_data is None:
+                info = cdf.cdf_info()
+                for zvar in getattr(info, 'zVariables', []):
+                    if 'epoch' in zvar.lower():
+                        epoch_data = cdf.varget(zvar)
+                        break
+            
+            if epoch_data is None:
+                continue
+            
+            try:
+                vel_data = cdf.varget(var_name)
+            except:
+                continue
+            
+            times = cdflib.cdfepoch.encode(epoch_data)
+            times_np = np.array(times, dtype='datetime64[ns]')
+            start_np = np.datetime64(start_time)
+            end_np = np.datetime64(end_time)
+            
+            mask = (times_np >= start_np) & (times_np <= end_np)
+            times_filtered = times_np[mask]
+            values_filtered = vel_data[mask]
+            
+            if len(times_filtered) > 0:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+                
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+    
+    session.close()
+    
+    if not all_times:
+        progress_callback(species, f"✗ No data found in time range")
+        return label, None
+    
+    # Concatenate and sort
+    times = np.concatenate(all_times)
+    values = np.concatenate(all_values)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+    
+    datetime_index = pd.to_datetime(times)
+    
+    if len(values.shape) == 1:
+        columns = ['Vt']
+        values = values.reshape(-1, 1)
+    elif values.shape[1] == 3:
+        columns = ['Vx', 'Vy', 'Vz']
+    else:
+        columns = [f'V{i}' for i in range(values.shape[1])]
+    
+    df = pd.DataFrame(values, index=datetime_index, columns=columns)
+    df.index.name = 'time'
+    
+    if 'Vt' not in df.columns and 'Vx' in df.columns:
+        df['Vt'] = np.sqrt(df['Vx']**2 + df['Vy']**2 + df['Vz']**2)
+    
+    df = df.replace(-1e31, np.nan)
+    
+    progress_callback(species, f"✓ Loaded {len(df):,} points")
+    
+    return label, df
 
 
 def check_cdasws_available() -> bool:
