@@ -1703,7 +1703,7 @@ def render_sidebar():
         if data_loaded:
             analysis_mode = st.sidebar.radio(
                 "Analysis Mode",
-                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments (PVI)", "Summary"],
+                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments", "Summary"],
                 label_visibility="collapsed",
                 key="analysis_mode"
             )
@@ -1796,7 +1796,7 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         render_psd_analysis(data, info, subsample_pts)
     elif analysis_mode == "PDF & Moments":
         render_pdf_analysis(data, info, subsample_pts)
-    elif analysis_mode == "Partial Variance of Increments (PVI)":
+    elif analysis_mode == "Partial Variance of Increments":
         render_pvi_analysis(data, info)
     elif analysis_mode == "Summary":
         render_summary_analysis(data, info, subsample_pts)
@@ -2442,7 +2442,7 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
 
 def render_pvi_analysis(datasets: dict, info: dict):
     """
-    Render Partial Variance of Increments (PVI) analysis.
+    Render Partial Variance of Increments analysis.
     
     Detects intermittent coherent structures using vector increments.
     """
@@ -2467,7 +2467,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
         c1, c2, c3 = st.columns([1, 1, 2])
         with c1:
             lag = st.slider(
-                "Time Lag (τ) [points]", 
+                "Time Lag (τ)", 
                 min_value=1, 
                 max_value=100, 
                 value=1,
@@ -2522,7 +2522,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
         pvi_time = clean_time[:-lag]
         
         # --- Visualization ---
-        st.subheader(f"Analysis: {key}")
+        st.subheader(f"PVI Series ({key})")
         # Standard Tip placed small right under title
         st.caption(f"💡 Tip: Adjust **Time Lag (τ)** to detect structures of different scales. (RMS: {rms:.2f} nT)")
         
@@ -2558,7 +2558,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
         layout = PUBLICATION_LAYOUT.copy()
         layout.update(
             title=dict(
-                text=f"Partial Variance of Increments (Lag τ={lag})",
+                text=f"Partial Variance of Increments",
                 font=dict(size=20, color='black'),
                 x=0.5,
                 xanchor='center',
