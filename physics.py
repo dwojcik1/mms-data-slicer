@@ -770,6 +770,7 @@ def compute_kde(
         # Fallback to scipy if sklearn is not available (e.g. pending restart)
         if kernel == 'gaussian':
             try:
+                from scipy import stats
                 kde_scipy = stats.gaussian_kde(data_clean, bw_method=bandwidth)
                 density = kde_scipy(x_grid)
                 return x_grid, density
@@ -778,3 +779,58 @@ def compute_kde(
         
         # If fallback fails or kernel not supported
         raise ImportError(f"Advanced KDE ({kernel}) requires scikit-learn. Please restart the app server or install scikit-learn.")
+
+
+@st.cache_data(show_spinner=False)
+def compute_pvi(
+    vectors: np.ndarray, 
+    lag: int = 1
+) -> Tuple[np.ndarray, float, float]:
+    """
+    Compute the Partial Variance of Increments (PVI) index.
+    
+    PVI(t, tau) = |Delta B(t, tau)| / sqrt( <|Delta B(t, tau)|^2> )
+    where Delta B(t, tau) = B(t + tau) - B(t)
+    
+    Args:
+        vectors: (N, 3) array of magnetic field data [Bx, By, Bz]
+        lag: Time lag (tau) in number of points
+        
+    Returns:
+        Tuple containing:
+        - pvi_values: Array of PVI indices (length N - lag)
+        - kurtosis_val: Kurtosis of the increment magnitudes
+        - rms_val: RMS value of the increments (for context/normalization check)
+    """
+    if len(vectors) <= lag:
+        return np.array([]), 0.0, 0.0
+        
+    # 1. Vector Increments: B(t + tau) - B(t)
+    # Using numpy slicing for efficiency
+    delta_b = vectors[lag:] - vectors[:-lag]
+    
+    # 2. Magnitude of increments: |Delta B|
+    # Norm along axis 1 (components)
+    increment_magnitude = np.linalg.norm(delta_b, axis=1)
+    
+    # 3. Reference mean square (Second Moment)
+    # <|Delta B|^2>
+    mean_sq_increment = np.mean(increment_magnitude**2)
+    rms_increment = np.sqrt(mean_sq_increment)
+    
+    if rms_increment == 0:
+        return np.zeros_like(increment_magnitude), 0.0, 0.0
+        
+    # 4. PVI Calculation
+    pvi_values = increment_magnitude / rms_increment
+    
+    # 5. Kurtosis of increments (measure of intermittency)
+    # Fourth standardized moment of the increments
+    from scipy.stats import kurtosis
+    k_val = kurtosis(increment_magnitude, fisher=True) # Fisher's definition (normal = 0.0) -> Excess Kurtosis
+    # But usually in PVI literature, they quote standard kurtosis (normal = 3.0) or excess?
+    # User said: "calculate the Kurtosis of the magnetic field increments".
+    # Let's provide Pearson kurtosis (normal=3) as it scales with <PVI^4>.
+    k_val_pearson = kurtosis(increment_magnitude, fisher=False)
+    
+    return pvi_values, k_val_pearson, rms_increment

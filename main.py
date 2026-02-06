@@ -26,7 +26,7 @@ from utils import (
     CDFLoader, extract_component, get_variable_metadata, 
     get_component_label, VariableMetadata
 )
-from physics import compute_psd_welch, compute_pdf, compute_statistics
+from physics import compute_psd_welch, compute_pdf, compute_statistics, compute_pvi
 
 
 from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_stats_display, PLOTLY_CONFIG, PSD_CONFIG
@@ -1701,9 +1701,9 @@ def render_sidebar():
         st.markdown("### Analysis Mode")
         
         if data_loaded:
-            analysis_mode = st.radio(
-                "Select Analysis",
-                ["Time Series Inspector", "Power Spectral Density", "PDF & Moments", "Summary Statistics"],
+            analysis_mode = st.sidebar.radio(
+                "Analysis Mode",
+                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments (PVI)", "Summary"],
                 label_visibility="collapsed",
                 key="analysis_mode"
             )
@@ -1790,13 +1790,15 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         st.warning("No data loaded.")
         return
     
-    if analysis_mode == "Time Series Inspector":
+    if analysis_mode == "Time Series":
         render_time_series_analysis(data, info, subsample_pts)
     elif analysis_mode == "Power Spectral Density":
         render_psd_analysis(data, info, subsample_pts)
     elif analysis_mode == "PDF & Moments":
         render_pdf_analysis(data, info, subsample_pts)
-    elif analysis_mode == "Summary Statistics":
+    elif analysis_mode == "Partial Variance of Increments (PVI)":
+        render_pvi_analysis(data, info)
+    elif analysis_mode == "Summary":
         render_summary_analysis(data, info, subsample_pts)
 
 
@@ -2436,6 +2438,158 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
             st.error(str(e))
+
+
+def render_pvi_analysis(datasets: dict, info: dict):
+    """
+    Render Partial Variance of Increments (PVI) analysis.
+    
+    Detects intermittent coherent structures using vector increments.
+    """
+    import plotly.graph_objects as go
+    from physics import compute_pvi
+    
+    st.markdown("### Partial Variance of Increments (PVI)")
+    
+    # 1. Definition Section
+    st.markdown(r"""
+    The **Partial Variance of Increments (PVI)** is a method to identify coherent structures and quantify intermittency.
+    
+    $$PVI(t, \tau) = \frac{|\Delta \mathbf{B}(t, \tau)|}{\sqrt{\langle |\Delta \mathbf{B}(t, \tau)|^2 \rangle}}$$
+    
+    where $\Delta \mathbf{B}(t, \tau) = \mathbf{B}(t + \tau) - \mathbf{B}(t)$ is the vector increment of the magnetic field.
+    Values of $PVI > \theta$ (typically 3) indicate non-Gaussian, intermittent events.
+    """)
+    
+    # 2. Controls
+    with st.container():
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            lag = st.slider(
+                "Time Lag (τ) [points]", 
+                min_value=1, 
+                max_value=100, 
+                value=1,
+                help="Separation between data points for increment calculation."
+            )
+        with c2:
+            threshold = st.number_input(
+                "Detection Threshold (θ)",
+                min_value=1.0,
+                max_value=10.0,
+                value=3.0,
+                step=0.1,
+                help="PVI level above which structures are identified (Greco et al. 2018)."
+            )
+        # Empty c3 for spacing
+            
+    st.markdown("---")
+    
+    # 3. Processing & Visualization per Dataset
+    for key, df in datasets.items():
+        # Clean data (ensure numeric)
+        # Assuming df has Bx, By, Bz columns.
+        cols = df.columns
+        # Try to find vector components
+        vec_cols = [c for c in cols if any(x in c.upper() for x in ['BX', 'BY', 'BZ'])]
+        
+        if len(vec_cols) < 3:
+            st.warning(f"Dataset {key} does not appear to have 3 vector components (Bx, By, Bz). Skipping.")
+            continue
+            
+        # Sort to ensure Bx, By, Bz order for vector math? 
+        # Actually compute_pvi expects (N, 3).
+        # Let's try to identify them strictly.
+        bx = next((c for c in vec_cols if 'X' in c.upper()), None)
+        by = next((c for c in vec_cols if 'Y' in c.upper()), None)
+        bz = next((c for c in vec_cols if 'Z' in c.upper()), None)
+        
+        if not (bx and by and bz):
+            st.warning(f"Could not identify Bx, By, Bz in {key}. Found: {vec_cols}")
+            continue
+            
+        data_vectors = df[[bx, by, bz]].values
+        clean_mask = np.isfinite(data_vectors).all(axis=1)
+        clean_vectors = data_vectors[clean_mask]
+        clean_time = df.index[clean_mask]
+        
+        if len(clean_vectors) < lag + 10:
+            st.error(f"Not enough data in {key} for lag {lag}.")
+            continue
+            
+        # Compute PVI
+        pvi, kurtosis, rms = compute_pvi(clean_vectors, lag=lag)
+        
+        # Align time: PVI is defined at t? Or center? 
+        # Usually associated with the increment interval. 
+        # Let's align to the start of the increment t (or t + tau/2).
+        # Vectors[lag:] corresponds to t+tau. Vectors[:-lag] corresponds to t.
+        # pvi[i] corresponds to diff between i+lag and i.
+        # Let's align to t (clean_time[:-lag]).
+        pvi_time = clean_time[:-lag]
+        
+        # --- Visualization ---
+        st.subheader(f"Analysis: {key}")
+        
+        # Identify peaks
+        peaks_mask = pvi > threshold
+        n_peaks = np.sum(peaks_mask)
+        max_pvi = np.max(pvi) if len(pvi) > 0 else 0
+        
+        # Plot
+        fig = go.Figure()
+        
+        # Main PVI line
+        fig.add_trace(go.Scatter(
+            x=pvi_time,
+            y=pvi,
+            mode='lines',
+            name='PVI',
+            line=dict(color='#6366f1', width=1.5)
+        ))
+        
+        # Threshold Line
+        fig.add_hline(
+            y=threshold, 
+            line_dash="dash", 
+            line_color="#ef4444", 
+            annotation_text=f"θ = {threshold}",
+            annotation_position="top right"
+        )
+        
+        # Highlight Peaks
+        if n_peaks > 0:
+            fig.add_trace(go.Scatter(
+                x=pvi_time[peaks_mask],
+                y=pvi[peaks_mask],
+                mode='markers',
+                name='Structures (>θ)',
+                marker=dict(color='#ef4444', size=6, symbol='circle')
+            ))
+            
+        fig.update_layout(
+            title=f"PVI Time Series (Lag τ={lag} pts)",
+            xaxis_title="Time",
+            yaxis_title="PVI",
+            template="plotly_white",
+            height=400,
+            hovermode="x unified",
+            margin=dict(l=0, r=0, t=30, b=0)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # --- Statistics Panel ---
+        st.markdown("#### Statistics")
+        sc1, sc2, sc3 = st.columns(3)
+        
+        with sc1:
+            st.metric("Maximum PVI", f"{max_pvi:.2f}")
+        with sc2:
+            st.metric("Detected Structures", f"{n_peaks}", help=f"Number of points where PVI > {threshold}")
+        with sc3:
+            st.metric("Increment Kurtosis", f"{kurtosis:.2f}", help="Pearson Kurtosis of |ΔB| (Gaussian = 3.0)")
+            
+        st.caption(f"RMS of Increments: {rms:.2f} nT")
 
 
 def main():
