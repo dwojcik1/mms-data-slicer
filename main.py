@@ -2476,8 +2476,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
         with c2:
             threshold = st.number_input(
                 "Detection Threshold (θ)",
-                min_value=1.0,
-                max_value=10.0,
+                min_value=0.0,
                 value=3.0,
                 step=0.1,
                 help="PVI level above which structures are identified (Greco et al. 2018)."
@@ -2535,13 +2534,13 @@ def render_pvi_analysis(datasets: dict, info: dict):
         # Plot
         fig = go.Figure()
         
-        # Main PVI line (Standard Blue)
+        # Main PVI line (Black)
         fig.add_trace(go.Scatter(
             x=pvi_time,
             y=pvi,
             mode='lines',
             name='PVI',
-            line=dict(color=COLORS[0], width=1.5),
+            line=dict(color='black', width=1.5),
             hovertemplate='PVI: %{y:.2f}<extra></extra>'
         ))
         
@@ -2554,17 +2553,6 @@ def render_pvi_analysis(datasets: dict, info: dict):
             annotation_position="top right",
             annotation_font=dict(color=COLORS[3])
         )
-        
-        # Highlight Peaks (Red Markers)
-        if n_peaks > 0:
-            fig.add_trace(go.Scatter(
-                x=pvi_time[peaks_mask],
-                y=pvi[peaks_mask],
-                mode='markers',
-                name=f'Structures (> {threshold})',
-                marker=dict(color=COLORS[3], size=6, symbol='circle'),
-                hovertemplate='Structure: %{y:.2f}<extra></extra>'
-            ))
             
         # Apply Publication Layout STRICTLY
         layout = PUBLICATION_LAYOUT.copy()
