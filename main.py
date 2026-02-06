@@ -1398,10 +1398,10 @@ def render_nasa_download_form():
                 
                 # Import progressive loader for FGM and FPI
                 if instrument_key.lower() == 'fgm':
+                    # Create progress UI inside a container
                     progress_ui = st.container()
-                    with progress_ui:
-                        st.markdown("### 📥 Download Progress")
-                        
+                    progress_ui.markdown("### 📥 Download Progress")
+                    
                     # Call progressive loader for FGM
                     df = load_fgm_cdasws_progressive(
                         trange=trange,
@@ -1415,11 +1415,11 @@ def render_nasa_download_form():
                     datasets = {'FGM': df}
                     
                 elif instrument_key.lower() == 'fpi':
+                    # Create progress UI inside a container
                     progress_ui = st.container()
-                    with progress_ui:
-                        st.markdown("### 📥 Download Progress")
-                        st.caption("Downloading both ion (DIS) and electron (DES) data in parallel...")
-                        
+                    progress_ui.markdown("### 📥 Download Progress")
+                    progress_ui.caption("Downloading both ion (DIS) and electron (DES) data in parallel...")
+                    
                     # Call progressive loader for FPI
                     datasets = load_fpi_cdasws_progressive(
                         trange=trange,
