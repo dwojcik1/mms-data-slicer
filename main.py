@@ -2448,6 +2448,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
     """
     import plotly.graph_objects as go
     from physics import compute_pvi
+    from plots import PLOTLY_CONFIG, PUBLICATION_LAYOUT
     
     st.markdown("### Partial Variance of Increments (PVI)")
     
@@ -2497,9 +2498,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
             st.warning(f"Dataset {key} does not appear to have 3 vector components (Bx, By, Bz). Skipping.")
             continue
             
-        # Sort to ensure Bx, By, Bz order for vector math? 
-        # Actually compute_pvi expects (N, 3).
-        # Let's try to identify them strictly.
+        # Identify components
         bx = next((c for c in vec_cols if 'X' in c.upper()), None)
         by = next((c for c in vec_cols if 'Y' in c.upper()), None)
         bz = next((c for c in vec_cols if 'Z' in c.upper()), None)
@@ -2520,12 +2519,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
         # Compute PVI
         pvi, kurtosis, rms = compute_pvi(clean_vectors, lag=lag)
         
-        # Align time: PVI is defined at t? Or center? 
-        # Usually associated with the increment interval. 
-        # Let's align to the start of the increment t (or t + tau/2).
-        # Vectors[lag:] corresponds to t+tau. Vectors[:-lag] corresponds to t.
-        # pvi[i] corresponds to diff between i+lag and i.
-        # Let's align to t (clean_time[:-lag]).
+        # Align time
         pvi_time = clean_time[:-lag]
         
         # --- Visualization ---
@@ -2539,44 +2533,50 @@ def render_pvi_analysis(datasets: dict, info: dict):
         # Plot
         fig = go.Figure()
         
-        # Main PVI line
-        fig.add_trace(go.Scatter(
+        # Main PVI line (Blue)
+        fig.add_trace(go.Scattergl(
             x=pvi_time,
             y=pvi,
             mode='lines',
             name='PVI',
-            line=dict(color='#6366f1', width=1.5)
+            line=dict(color='#1f77b4', width=1.5)
         ))
         
-        # Threshold Line
+        # Threshold Line (Red Dashed)
         fig.add_hline(
             y=threshold, 
             line_dash="dash", 
-            line_color="#ef4444", 
+            line_color="#d62728", 
             annotation_text=f"θ = {threshold}",
-            annotation_position="top right"
+            annotation_position="top right",
+            annotation_font=dict(color="#d62728")
         )
         
-        # Highlight Peaks
+        # Highlight Peaks (Red Markers)
         if n_peaks > 0:
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=pvi_time[peaks_mask],
                 y=pvi[peaks_mask],
                 mode='markers',
-                name='Structures (>θ)',
-                marker=dict(color='#ef4444', size=6, symbol='circle')
+                name=f'Structures (> {threshold})',
+                marker=dict(color='#d62728', size=6, symbol='circle')
             ))
             
-        fig.update_layout(
-            title=f"PVI Time Series (Lag τ={lag} pts)",
+        # Apply Publication Layout
+        layout = PUBLICATION_LAYOUT.copy()
+        layout.update(
+            title=dict(
+                text=f"Partial Variance of Increments (Lag τ={lag})",
+                font=dict(size=14)
+            ),
             xaxis_title="Time",
-            yaxis_title="PVI",
-            template="plotly_white",
+            yaxis_title="PVI Index",
             height=400,
-            hovermode="x unified",
-            margin=dict(l=0, r=0, t=30, b=0)
+            showlegend=True
         )
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(layout)
+        
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
         # --- Statistics Panel ---
         st.markdown("#### Statistics")
@@ -2587,9 +2587,12 @@ def render_pvi_analysis(datasets: dict, info: dict):
         with sc2:
             st.metric("Detected Structures", f"{n_peaks}", help=f"Number of points where PVI > {threshold}")
         with sc3:
-            st.metric("Increment Kurtosis", f"{kurtosis:.2f}", help="Pearson Kurtosis of |ΔB| (Gaussian = 3.0)")
+            st.metric("Increment Kurtosis", f"{kurtosis:.2f}", help="Pearson Kurtosis of |ΔB|. Values > 3 indicate intermittency.")
             
         st.caption(f"RMS of Increments: {rms:.2f} nT")
+
+    # Standard Tip
+    st.info("💡 **Tip:** Adjust **Time Lag (τ)** to detect structures of different scales.", icon="⚙️")
 
 
 def main():
