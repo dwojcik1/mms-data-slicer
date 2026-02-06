@@ -14,6 +14,108 @@ import os
 import streamlit as st
 import zipfile
 from typing import Dict, Any, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+
+def _download_and_process_cdf(
+    file_url: str,
+    start_time: datetime,
+    end_time: datetime,
+    probe: str,
+    data_rate: str,
+    level: str,
+    coord: str,
+    var_name: str
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """
+    Download and process a single CDF file.
+    
+    Returns:
+        Tuple of (times_filtered, values_filtered) or (None, None) on error
+    """
+    import cdflib
+    
+    # Create session with retry strategy and connection pooling
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    
+    with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+        tmp_path = tmp.name
+    
+    try:
+        # Download with streaming for memory efficiency
+        response = session.get(file_url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        with open(tmp_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        # Read with cdflib
+        cdf = cdflib.CDF(tmp_path)
+        
+        # Get epoch data
+        epoch_data = None
+        for possible_epoch in ['Epoch', 'epoch', f'mms{probe}_fgm_epoch_{data_rate}_{level}']:
+            try:
+                epoch_data = cdf.varget(possible_epoch)
+                break
+            except:
+                continue
+        
+        if epoch_data is None:
+            # Try to find any epoch variable
+            info = cdf.cdf_info()
+            for zvar in getattr(info, 'zVariables', []):
+                if 'epoch' in zvar.lower():
+                    epoch_data = cdf.varget(zvar)
+                    break
+        
+        if epoch_data is None:
+            return None, None
+        
+        # Get field data
+        try:
+            field_data = cdf.varget(var_name)
+        except:
+            # Try alternate naming
+            alt_var = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
+            try:
+                field_data = cdf.varget(alt_var)
+            except:
+                return None, None
+        
+        # Convert epoch to datetime - use encode for safe TT2000 conversion
+        times = cdflib.cdfepoch.encode(epoch_data)
+        
+        # Filter to requested time range
+        times_np = np.array(times, dtype='datetime64[ns]')
+        start_np = np.datetime64(start_time)
+        end_np = np.datetime64(end_time)
+        
+        mask = (times_np >= start_np) & (times_np <= end_np)
+        times_filtered = times_np[mask]
+        values_filtered = field_data[mask]
+        
+        if len(times_filtered) > 0:
+            return times_filtered, values_filtered
+        return None, None
+        
+    except Exception as e:
+        warnings.warn(f"Failed to process file {file_url}: {e}")
+        return None, None
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        session.close()
 
 
 @st.cache_data(show_spinner="Downloading FGM data from NASA CDAWeb...")
@@ -29,7 +131,8 @@ def load_fgm_cdasws(
     Download MMS FGM (Fluxgate Magnetometer) data using CDAWeb API.
     
     Downloads the CDF file and parses it directly with cdflib to avoid
-    cdasws internal module detection issues.
+    cdasws internal module detection issues. Uses parallel downloads for
+    improved performance.
     
     Args:
         trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
@@ -80,80 +183,35 @@ def load_fgm_cdasws(
         raise ValueError(f"No data files available for {dataset}")
 
     
-    # Download and process each CDF file
+    # Download and process CDF files in parallel
     all_times = []
     all_values = []
     
-    for file_desc in file_descriptions:
-        file_url = file_desc.get('Name')
-        if not file_url:
-            continue
+    # Use ThreadPoolExecutor for parallel downloads (max 4 workers to avoid overwhelming CDAWeb)
+    with ThreadPoolExecutor(max_workers=min(4, len(file_descriptions))) as executor:
+        # Submit all download tasks
+        future_to_file = {
+            executor.submit(
+                _download_and_process_cdf,
+                file_desc.get('Name'),
+                start_time,
+                end_time,
+                probe,
+                data_rate,
+                level,
+                coord,
+                var_name
+            ): file_desc
+            for file_desc in file_descriptions
+            if file_desc.get('Name')
+        }
         
-        # Download CDF file to temp location
-        import urllib.request
-        
-        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
-            tmp_path = tmp.name
-        
-        try:
-            urllib.request.urlretrieve(file_url, tmp_path)
-            
-            # Read with cdflib
-            cdf = cdflib.CDF(tmp_path)
-            
-            # Get epoch data
-            epoch_data = None
-            for possible_epoch in ['Epoch', 'epoch', f'mms{probe}_fgm_epoch_{data_rate}_{level}']:
-                try:
-                    epoch_data = cdf.varget(possible_epoch)
-                    break
-                except:
-                    continue
-            
-            if epoch_data is None:
-                # Try to find any epoch variable
-                info = cdf.cdf_info()
-                for zvar in getattr(info, 'zVariables', []):
-                    if 'epoch' in zvar.lower():
-                        epoch_data = cdf.varget(zvar)
-                        break
-            
-            if epoch_data is None:
-                continue
-            
-            # Get field data
-            try:
-                field_data = cdf.varget(var_name)
-            except:
-                # Try alternate naming
-                alt_var = f"mms{probe}_fgm_b_{coord}_{data_rate}_{level}"
-                try:
-                    field_data = cdf.varget(alt_var)
-                except:
-                    continue
-            
-            # Convert epoch to datetime - use encode for safe TT2000 conversion (returns ISO strings)
-            times = cdflib.cdfepoch.encode(epoch_data)
-            
-            # Filter to requested time range
-            times_np = np.array(times, dtype='datetime64[ns]')
-            start_np = np.datetime64(start_time)
-            end_np = np.datetime64(end_time)
-            
-            mask = (times_np >= start_np) & (times_np <= end_np)
-            times_filtered = times_np[mask]
-            values_filtered = field_data[mask]
-            
-            if len(times_filtered) > 0:
+        # Collect results as they complete
+        for future in as_completed(future_to_file):
+            times_filtered, values_filtered = future.result()
+            if times_filtered is not None and values_filtered is not None:
                 all_times.append(times_filtered)
                 all_values.append(values_filtered)
-            
-        finally:
-            # Clean up temp file
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
     
     if not all_times:
         raise ValueError(
@@ -323,6 +381,172 @@ def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
     return zip_path, os.path.basename(zip_path)
 
 
+def _download_fpi_species(
+    species: str,
+    label: str,
+    probe: str,
+    data_rate: str,
+    level: str,
+    coord: str,
+    start_time: datetime,
+    end_time: datetime
+) -> Tuple[str, Optional[pd.DataFrame]]:
+    """
+    Download and process FPI data for a single species (DIS or DES).
+    
+    Returns:
+        Tuple of (label, DataFrame) or (label, None) on error
+    """
+    try:
+        from cdasws import CdasWs
+        import cdflib
+    except ImportError as e:
+        warnings.warn(f"Required modules not installed: {e}")
+        return label, None
+    
+    cdas = CdasWs()
+    
+    # Dataset: MMS1_FPI_FAST_L2_DIS-MOMS or MMS1_FPI_FAST_L2_DES-MOMS
+    dataset = f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_{species.upper()}-MOMS"
+    
+    # Variable: mms1_dis_bulkv_gse_fast or mms1_des_bulkv_gse_fast
+    var_name = f"mms{probe}_{species}_bulkv_{coord}_{data_rate}"
+    
+    try:
+        status_code, result = cdas.get_data_file(
+            dataset,
+            [var_name],
+            start_time,
+            end_time
+        )
+    except Exception as e:
+        warnings.warn(f"Failed to get {label} data: {e}")
+        return label, None
+    
+    if not result or 'FileDescription' not in result:
+        warnings.warn(f"No {label} files found for {dataset}")
+        return label, None
+    
+    file_descriptions = result.get('FileDescription', [])
+    if not file_descriptions:
+        return label, None
+    
+    all_times = []
+    all_values = []
+    
+    # Create session with retry strategy and connection pooling
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    
+    for file_desc in file_descriptions:
+        file_url = file_desc.get('Name')
+        if not file_url:
+            continue
+        
+        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+            tmp_path = tmp.name
+        
+        try:
+            # Download with streaming for memory efficiency
+            response = session.get(file_url, stream=True, timeout=30)
+            response.raise_for_status()
+            
+            with open(tmp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            
+            cdf = cdflib.CDF(tmp_path)
+            
+            # Find epoch variable
+            epoch_data = None
+            epoch_patterns = [
+                f'Epoch',
+                f'mms{probe}_{species}_epoch_{data_rate}',
+                'epoch'
+            ]
+            
+            for pattern in epoch_patterns:
+                try:
+                    epoch_data = cdf.varget(pattern)
+                    break
+                except:
+                    continue
+            
+            if epoch_data is None:
+                info = cdf.cdf_info()
+                for zvar in getattr(info, 'zVariables', []):
+                    if 'epoch' in zvar.lower():
+                        epoch_data = cdf.varget(zvar)
+                        break
+            
+            if epoch_data is None:
+                continue
+            
+            # Get velocity data
+            try:
+                vel_data = cdf.varget(var_name)
+            except:
+                continue
+            
+            # Convert epoch to datetime - use encode for safe TT2000 conversion
+            times = cdflib.cdfepoch.encode(epoch_data)
+            times_np = np.array(times, dtype='datetime64[ns]')
+            start_np = np.datetime64(start_time)
+            end_np = np.datetime64(end_time)
+            
+            mask = (times_np >= start_np) & (times_np <= end_np)
+            times_filtered = times_np[mask]
+            values_filtered = vel_data[mask]
+            
+            if len(times_filtered) > 0:
+                all_times.append(times_filtered)
+                all_values.append(values_filtered)
+            
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+    
+    session.close()
+    
+    if not all_times:
+        warnings.warn(f"No {label} data found in time range")
+        return label, None
+    
+    # Concatenate and sort
+    times = np.concatenate(all_times)
+    values = np.concatenate(all_values)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+    
+    # Create DataFrame
+    datetime_index = pd.to_datetime(times)
+    
+    if len(values.shape) == 1:
+        columns = ['Vt']
+        values = values.reshape(-1, 1)
+    elif values.shape[1] == 3:
+        columns = ['Vx', 'Vy', 'Vz']
+    else:
+        columns = [f'V{i}' for i in range(values.shape[1])]
+    
+    df = pd.DataFrame(values, index=datetime_index, columns=columns)
+    df.index.name = 'time'
+    
+    # Add magnitude if not present
+    if 'Vt' not in df.columns and 'Vx' in df.columns:
+        df['Vt'] = np.sqrt(df['Vx']**2 + df['Vy']**2 + df['Vz']**2)
+    
+    # Clean fill values
+    df = df.replace(-1e31, np.nan)
+    
+    return label, df
+
+
 @st.cache_data(show_spinner="Downloading FPI data from NASA CDAWeb...")
 def load_fpi_cdasws(
     trange: List[str],
@@ -335,7 +559,8 @@ def load_fpi_cdasws(
     """
     Download MMS FPI (Fast Plasma Investigation) data using CDAWeb API.
     
-    Downloads both DIS (ion) and DES (electron) bulk velocity moments.
+    Downloads both DIS (ion) and DES (electron) bulk velocity moments in parallel
+    for improved performance.
     
     Args:
         trange: Time range as ['YYYY-MM-DD HH:MM:SS', 'YYYY-MM-DD HH:MM:SS']
@@ -348,146 +573,36 @@ def load_fpi_cdasws(
         Dictionary with keys 'DIS' (ions) and 'DES' (electrons), each containing
         a DataFrame with DatetimeIndex and columns ['Vx', 'Vy', 'Vz', 'Vt']
     """
-    try:
-        from cdasws import CdasWs
-        import cdflib
-    except ImportError as e:
-        raise ImportError(f"Required modules not installed: {e}")
-    
-    cdas = CdasWs()
     start_time = datetime.strptime(trange[0], '%Y-%m-%d %H:%M:%S')
     end_time = datetime.strptime(trange[1], '%Y-%m-%d %H:%M:%S')
     
     results = {}
     
-    # Download both DIS (ions) and DES (electrons)
-    for species, label in [('dis', 'DIS'), ('des', 'DES')]:
-        # Dataset: MMS1_FPI_FAST_L2_DIS-MOMS or MMS1_FPI_FAST_L2_DES-MOMS
-        dataset = f"MMS{probe}_FPI_{data_rate.upper()}_{level.upper()}_{species.upper()}-MOMS"
-        
-        # Variable: mms1_dis_bulkv_gse_fast or mms1_des_bulkv_gse_fast
-        var_name = f"mms{probe}_{species}_bulkv_{coord}_{data_rate}"
-        
-        try:
-            status_code, result = cdas.get_data_file(
-                dataset,
-                [var_name],
+    # Download both DIS (ions) and DES (electrons) in parallel
+    species_list = [('dis', 'DIS'), ('des', 'DES')]
+    
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        # Submit tasks for both species
+        future_to_species = {
+            executor.submit(
+                _download_fpi_species,
+                species,
+                label,
+                probe,
+                data_rate,
+                level,
+                coord,
                 start_time,
                 end_time
-            )
-        except Exception as e:
-            warnings.warn(f"Failed to get {label} data: {e}")
-            continue
+            ): (species, label)
+            for species, label in species_list
+        }
         
-        if not result or 'FileDescription' not in result:
-            warnings.warn(f"No {label} files found for {dataset}")
-            continue
-        
-        file_descriptions = result.get('FileDescription', [])
-        if not file_descriptions:
-            continue
-        
-        all_times = []
-        all_values = []
-        
-        import urllib.request
-        
-        for file_desc in file_descriptions:
-            file_url = file_desc.get('Name')
-            if not file_url:
-                continue
-            
-            with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
-                tmp_path = tmp.name
-            
-            try:
-                urllib.request.urlretrieve(file_url, tmp_path)
-                cdf = cdflib.CDF(tmp_path)
-                
-                # Find epoch variable
-                epoch_data = None
-                epoch_patterns = [
-                    f'Epoch',
-                    f'mms{probe}_{species}_epoch_{data_rate}',
-                    'epoch'
-                ]
-                
-                for pattern in epoch_patterns:
-                    try:
-                        epoch_data = cdf.varget(pattern)
-                        break
-                    except:
-                        continue
-                
-                if epoch_data is None:
-                    info = cdf.cdf_info()
-                    for zvar in getattr(info, 'zVariables', []):
-                        if 'epoch' in zvar.lower():
-                            epoch_data = cdf.varget(zvar)
-                            break
-                
-                if epoch_data is None:
-                    continue
-                
-                # Get velocity data
-                try:
-                    vel_data = cdf.varget(var_name)
-                except:
-                    continue
-                
-                # Convert epoch to datetime - use encode for safe TT2000 conversion
-                times = cdflib.cdfepoch.encode(epoch_data)
-                times_np = np.array(times, dtype='datetime64[ns]')
-                start_np = np.datetime64(start_time)
-                end_np = np.datetime64(end_time)
-                
-                mask = (times_np >= start_np) & (times_np <= end_np)
-                times_filtered = times_np[mask]
-                values_filtered = vel_data[mask]
-                
-                if len(times_filtered) > 0:
-                    all_times.append(times_filtered)
-                    all_values.append(values_filtered)
-                
-            finally:
-                try:
-                    os.unlink(tmp_path)
-                except:
-                    pass
-        
-        if not all_times:
-            warnings.warn(f"No {label} data found in time range")
-            continue
-        
-        # Concatenate and sort
-        times = np.concatenate(all_times)
-        values = np.concatenate(all_values)
-        sort_idx = np.argsort(times)
-        times = times[sort_idx]
-        values = values[sort_idx]
-        
-        # Create DataFrame
-        datetime_index = pd.to_datetime(times)
-        
-        if len(values.shape) == 1:
-            columns = ['Vt']
-            values = values.reshape(-1, 1)
-        elif values.shape[1] == 3:
-            columns = ['Vx', 'Vy', 'Vz']
-        else:
-            columns = [f'V{i}' for i in range(values.shape[1])]
-        
-        df = pd.DataFrame(values, index=datetime_index, columns=columns)
-        df.index.name = 'time'
-        
-        # Add magnitude if not present
-        if 'Vt' not in df.columns and 'Vx' in df.columns:
-            df['Vt'] = np.sqrt(df['Vx']**2 + df['Vy']**2 + df['Vz']**2)
-        
-        # Clean fill values
-        df = df.replace(-1e31, np.nan)
-        
-        results[label] = df
+        # Collect results as they complete
+        for future in as_completed(future_to_species):
+            label, df = future.result()
+            if df is not None:
+                results[label] = df
     
     if not results:
         raise ValueError(
@@ -631,6 +746,118 @@ INSTRUMENT_DATASET_MAP = {
 }
 
 
+def _process_single_cdf_universal(
+    file_url: str,
+    var_names: List[str],
+    var_patterns: List[str],
+    start_time: datetime,
+    end_time: datetime
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """
+    Download and process a single CDF file for universal loader.
+    
+    Returns:
+        Tuple of (times_filtered, values_filtered) or (None, None) on error
+    """
+    import cdflib
+    
+    # Create session with retry strategy and connection pooling
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    
+    with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
+        tmp_path = tmp.name
+    
+    try:
+        # Download with streaming for memory efficiency
+        response = session.get(file_url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        with open(tmp_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        
+        cdf = cdflib.CDF(tmp_path)
+        
+        # Find epoch variable
+        epoch_data = None
+        info = cdf.cdf_info()
+        for zvar in getattr(info, 'zVariables', []):
+            if 'epoch' in zvar.lower():
+                try:
+                    epoch_data = cdf.varget(zvar)
+                    break
+                except:
+                    continue
+        
+        if epoch_data is None:
+            return None, None
+        
+        # Try each var pattern
+        field_data = None
+        for var_name in var_names:
+            try:
+                field_data = cdf.varget(var_name)
+                break
+            except:
+                continue
+        
+        # If still nothing, try to find a matching variable
+        if field_data is None:
+            for zvar in getattr(info, 'zVariables', []):
+                for pattern in var_patterns:
+                    # Simple pattern matching
+                    base = pattern.split('{')[0]
+                    if base and base in zvar.lower():
+                        try:
+                            test_data = cdf.varget(zvar)
+                            if test_data is not None and len(test_data) > 0:
+                                field_data = test_data
+                                break
+                        except:
+                            continue
+                if field_data is not None:
+                    break
+        
+        if field_data is None:
+            return None, None
+        
+        # Convert epoch to datetime - use encode for safe TT2000 conversion
+        times = cdflib.cdfepoch.encode(epoch_data)
+        times_np = np.array(times, dtype='datetime64[ns]')
+        
+        # Filter to time range
+        start_np = np.datetime64(start_time)
+        end_np = np.datetime64(end_time)
+        mask = (times_np >= start_np) & (times_np <= end_np)
+        
+        times_filtered = times_np[mask]
+        
+        # Handle multi-dimensional data (spectra -> mean over energy)
+        if len(field_data.shape) > 2:
+            # Average over energy dimension for spectra
+            field_data = np.nanmean(field_data, axis=tuple(range(1, len(field_data.shape)-1)))
+        
+        values_filtered = field_data[mask]
+        
+        if len(times_filtered) > 0:
+            return times_filtered, values_filtered
+        return None, None
+        
+    except Exception as e:
+        warnings.warn(f"Failed to process file {file_url}: {e}")
+        return None, None
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        session.close()
+
+
 def _download_cdf_and_extract(
     dataset: str,
     var_patterns: List[str],
@@ -647,6 +874,7 @@ def _download_cdf_and_extract(
     Generic CDF download and extraction helper.
     
     Downloads CDF files from CDAWeb and extracts the specified variable.
+    Uses parallel downloads for improved performance when multiple files are available.
     """
     try:
         from cdasws import CdasWs
@@ -683,92 +911,31 @@ def _download_cdf_and_extract(
     if not file_descriptions:
         raise ValueError(f"No data files available for {dataset}")
     
-    import urllib.request
     all_times = []
     all_values = []
     
-    for file_desc in file_descriptions:
-        file_url = file_desc.get('Name')
-        if not file_url:
-            continue
+    # Download and process CDF files in parallel
+    with ThreadPoolExecutor(max_workers=min(4, len(file_descriptions))) as executor:
+        # Submit all download tasks
+        future_to_file = {
+            executor.submit(
+                _process_single_cdf_universal,
+                file_desc.get('Name'),
+                var_names,
+                var_patterns,
+                start_time,
+                end_time
+            ): file_desc
+            for file_desc in file_descriptions
+            if file_desc.get('Name')
+        }
         
-        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
-            tmp_path = tmp.name
-        
-        try:
-            urllib.request.urlretrieve(file_url, tmp_path)
-            cdf = cdflib.CDF(tmp_path)
-            
-            # Find epoch variable
-            epoch_data = None
-            info = cdf.cdf_info()
-            for zvar in getattr(info, 'zVariables', []):
-                if 'epoch' in zvar.lower():
-                    try:
-                        epoch_data = cdf.varget(zvar)
-                        break
-                    except:
-                        continue
-            
-            if epoch_data is None:
-                continue
-            
-            # Try each var pattern
-            field_data = None
-            for var_name in var_names:
-                try:
-                    field_data = cdf.varget(var_name)
-                    break
-                except:
-                    continue
-            
-            # If still nothing, try to find a matching variable
-            if field_data is None:
-                for zvar in getattr(info, 'zVariables', []):
-                    for pattern in var_patterns:
-                        # Simple pattern matching
-                        base = pattern.split('{')[0]
-                        if base and base in zvar.lower():
-                            try:
-                                test_data = cdf.varget(zvar)
-                                if test_data is not None and len(test_data) > 0:
-                                    field_data = test_data
-                                    break
-                            except:
-                                continue
-                    if field_data is not None:
-                        break
-            
-            if field_data is None:
-                continue
-            
-            # Convert epoch to datetime - use encode for safe TT2000 conversion
-            times = cdflib.cdfepoch.encode(epoch_data)
-            times_np = np.array(times, dtype='datetime64[ns]')
-            
-            # Filter to time range
-            start_np = np.datetime64(start_time)
-            end_np = np.datetime64(end_time)
-            mask = (times_np >= start_np) & (times_np <= end_np)
-            
-            times_filtered = times_np[mask]
-            
-            # Handle multi-dimensional data (spectra -> mean over energy)
-            if len(field_data.shape) > 2:
-                # Average over energy dimension for spectra
-                field_data = np.nanmean(field_data, axis=tuple(range(1, len(field_data.shape)-1)))
-            
-            values_filtered = field_data[mask]
-            
-            if len(times_filtered) > 0:
+        # Collect results as they complete
+        for future in as_completed(future_to_file):
+            times_filtered, values_filtered = future.result()
+            if times_filtered is not None and values_filtered is not None:
                 all_times.append(times_filtered)
                 all_values.append(values_filtered)
-            
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
     
     if not all_times:
         raise ValueError(f"No data extracted from {dataset}")
