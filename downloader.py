@@ -53,6 +53,7 @@ async def _process_cdf_generic(client, file_url, var_patterns, epoch_patterns, s
     with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
         tmp.write(content)
         tmp_path = tmp.name
+        tmp.close()  # Ensure data is flushed to disk!
     
     try:
         cdf = cdflib.CDF(tmp_path)
