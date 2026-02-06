@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import queue
 
 
 def _download_and_process_cdf(
@@ -359,18 +360,31 @@ def load_fgm_cdasws_progressive(
     all_values = []
     completed = 0
     
+    # Queue for thread-safe communication between worker threads and main thread
+    progress_queue = queue.Queue()
+    
     def update_progress(msg: str, current: float, total: int):
+        # Put message in queue instead of directly calling Streamlit (thread-safety)
+        progress_queue.put((msg, current, total))
+    
+    def process_progress_updates():
+        """Process all pending progress updates from the queue."""
         nonlocal completed
-        if progress_bar is not None:
-            progress = min(current / total, 1.0)
-            progress_bar.progress(progress)
-        if status_text is not None:
-            status_text.text(f"📊 {msg}")
-        if file_status is not None and '✓' in msg:
-            completed += 1
-            file_status.success(f"✓ File {completed}/{total}: {msg}")
-        elif file_status is not None and '✗' in msg:
-            file_status.error(msg)
+        while not progress_queue.empty():
+            try:
+                msg, current, total = progress_queue.get_nowait()
+                if progress_bar is not None:
+                    progress = min(current / total, 1.0)
+                    progress_bar.progress(progress)
+                if status_text is not None:
+                    status_text.text(f"📊 {msg}")
+                if file_status is not None and '✓' in msg:
+                    completed += 1
+                    file_status.success(f"✓ File {completed}/{total}: {msg}")
+                elif file_status is not None and '✗' in msg:
+                    file_status.error(msg)
+            except queue.Empty:
+                break
     
     # Download files with progress updates
     with ThreadPoolExecutor(max_workers=min(4, total_files)) as executor:
@@ -393,11 +407,18 @@ def load_fgm_cdasws_progressive(
             if file_desc.get('Name')
         }
         
+        # Process downloads with periodic UI updates
         for future in as_completed(future_to_idx):
+            # Update UI from main thread (thread-safe)
+            process_progress_updates()
+            
             times_filtered, values_filtered = future.result()
             if times_filtered is not None and values_filtered is not None:
                 all_times.append(times_filtered)
                 all_values.append(values_filtered)
+        
+        # Process any remaining progress updates
+        process_progress_updates()
     
     if not all_times:
         raise ValueError(

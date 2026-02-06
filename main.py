@@ -1465,8 +1465,11 @@ def render_nasa_download_form():
                 st.rerun()
                 
             except Exception as e:
+                import traceback
                 progress_container.empty()
                 st.error(f"Download failed: {e}")
+                with st.expander("Error Details"):
+                    st.code(traceback.format_exc())
             
         # Disclaimer Note (Time Series)
         st.markdown(
