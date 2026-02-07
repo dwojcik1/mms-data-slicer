@@ -1688,7 +1688,7 @@ def render_sidebar():
         if data_loaded:
             analysis_mode = st.sidebar.radio(
                 "Analysis Mode",
-                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments", "Summary"],
+                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments", "Orbit & Field Models", "Summary"],
                 label_visibility="collapsed",
                 key="analysis_mode"
             )
@@ -1783,6 +1783,8 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         render_pdf_analysis(data, info, subsample_pts)
     elif analysis_mode == "Partial Variance of Increments":
         render_pvi_analysis(data, info)
+    elif analysis_mode == "Orbit & Field Models":
+        render_orbit_analysis(st.session_state.download_info.get('trange'), st.session_state.download_info.get('probe'))
     elif analysis_mode == "Summary":
         render_summary_analysis(data, info, subsample_pts)
 
@@ -2603,6 +2605,72 @@ def render_pvi_analysis(datasets: dict, info: dict):
             st.metric("Detected Structures", f"{n_peaks}", help=f"Number of points where PVI > {threshold}")
         with sc3:
             st.metric("Increment Kurtosis", f"{kurtosis:.2f}", help="Pearson Kurtosis of |ΔB|. Values > 3 indicate intermittency.")
+
+
+
+def render_orbit_analysis(trange, probe):
+    """
+    Render Orbit and Tsyganenko Model Analysis.
+    """
+    from models import run_mms_tsyganenko
+    from plots import plot_model_comparison, PLOTLY_CONFIG
+    
+    st.markdown("### MMS Orbit & Tsyganenko Field Model Comparison")
+    st.markdown("Compare in-situ magnetic field measurements with the **Tsyganenko 96 (T96)** external field model.")
+    
+    if not trange:
+        st.warning("No data loaded. Please load a dataset first to define the time range.")
+        return
+
+    # Controls
+    with st.container():
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            # Probe selector (default to current if available, else 1)
+            current_probe = str(probe) if probe else '1'
+            selected_probe = st.selectbox("MMS Probe", ['1', '2', '3', '4'], index=int(current_probe)-1)
+        
+        with c2:
+            st.markdown("<br>", unsafe_allow_html=True) 
+            run_btn = st.button("Run Model Comparison", type="primary", use_container_width=True)
+            
+        with c3:
+            st.info(f"**Interval:** {trange[0]} to {trange[1]}")
+
+    st.divider()
+
+    if run_btn:
+        with st.spinner("Running Physics Pipeline: MEC → FGM → OMNI → T96... (This may take a moment)"):
+            try:
+                # Run the model
+                results = run_mms_tsyganenko(trange, probe=selected_probe)
+                
+                if results:
+                    st.success("Model Run Complete!")
+                    
+                    # Visualization
+                    fig = plot_model_comparison(
+                        results['measured'], 
+                        results['model'], 
+                        results['residual'],
+                        title=f"MMS{selected_probe} B-Field vs T96 Model ({results['metadata']['coords']})"
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+                    
+                    # Metrics
+                    res = results['residual']
+                    rms = np.sqrt((res**2).mean())
+                    
+                    st.markdown("#### Residual Statistics (Observed - Model)")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("RMS ΔBx", f"{rms['dBx']:.2f} nT")
+                    c2.metric("RMS ΔBy", f"{rms['dBy']:.2f} nT")
+                    c3.metric("RMS ΔBz", f"{rms['dBz']:.2f} nT")
+                    
+            except Exception as e:
+                st.error(f"Analysis Failed: {str(e)}")
+                st.exception(e)
 
 
 def main():
