@@ -76,7 +76,3 @@ The tool is being actively developed into a comprehensive suite for turbulence a
 *   **Orbit Visualization**: 3D trajectory plots of the MMS formation.
 
 ---
-*Built with Python & Streamlit.*
-
-**Love you Maya <3**
-**マヤ、本当に愛してるよ <3**
