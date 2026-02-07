@@ -105,18 +105,16 @@ SCALAR_COLOR = '#9467bd'  # Purple
 INSTRUMENT_UNITS = {
     'fgm': 'nT',
     'scm': 'nT',
-    'fsm': 'nT',
+
     'edp': 'mV/m',
     'edi': 'mV/m',
     'fpi_velocity': 'km/s',
     'fpi_density': 'cm⁻³',
     'hpca': 'cm⁻³',
     'feeps': '1/(cm² s sr keV)',
-    'eis': '1/(cm² s sr keV)',
-    'aspoc': 'μA',
+
     'mec': 'km',
-    'state': 'deg',
-    'tqf': '',
+
 }
 
 

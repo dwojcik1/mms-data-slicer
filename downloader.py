@@ -566,18 +566,14 @@ def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
     datatype = download_info.get("datatype", "")
     coord = download_info.get("coord", "")
 
-    func_map = {
         "fgm": pyspedas.projects.mms.fgm,
         "scm": pyspedas.projects.mms.scm,
-        "fsm": pyspedas.projects.mms.fsm,
         "edp": pyspedas.projects.mms.edp,
         "edi": pyspedas.projects.mms.edi,
         "feeps": pyspedas.projects.mms.feeps,
-        "eis": pyspedas.projects.mms.eis,
         "fpi": pyspedas.projects.mms.fpi,
         "hpca": pyspedas.projects.mms.hpca,
         "mec": pyspedas.projects.mms.mec,
-        "state": pyspedas.projects.mms.state,
     }
 
     if instrument not in func_map:
@@ -617,7 +613,7 @@ def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
     )
     if datatype:
         kwargs["datatype"] = datatype
-    if coord and instrument not in {"fgm", "fsm"}:
+    if coord and instrument not in {"fgm"}:
         kwargs["coord"] = coord.lower()
 
     file_list = []
@@ -978,14 +974,7 @@ INSTRUMENT_DATASET_MAP = {
         'units': 'nT',
         'type': 'vector'
     },
-    'fsm': {
-        # Variable: mms1_fsm_b_gse_brst_l3  (FSM is only burst, L3, 8khz)
-        'dataset': 'MMS{p}_FSM_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_fsm_b_gse_{r}_{l}'],
-        'columns': ['Bx', 'By', 'Bz', 'Bt'],
-        'units': 'nT',
-        'type': 'vector'
-    },
+
     'edp': {
         # Variable: mms1_edp_dce_gse_fast_l2
         'dataset': 'MMS{p}_EDP_{r}_{l}_{t}',
@@ -1020,22 +1009,8 @@ INSTRUMENT_DATASET_MAP = {
         'units': '1/(cm^2 s sr keV)',
         'type': 'flux'
     },
-    'eis': {
-        # Variable: mms1_epd_eis_srvy_l2_extof_proton_flux_omni
-        'dataset': 'MMS{p}_EPDE_{r}_{l}_{t}',
-        'var_patterns': ['mms{p}_epd_eis_{r}_{l}_{t}_proton_flux_omni'],
-        'columns': ['value'],
-        'units': '1/(cm^2 s sr keV)',
-        'type': 'flux'
-    },
-    'aspoc': {
-        # Variable: mms1_aspoc_ionc_l2
-        'dataset': 'MMS{p}_ASPOC_{r}_{l}',
-        'var_patterns': ['mms{p}_aspoc_ionc_{l}', 'mms{p}_asp1_ionc_{l}', 'mms{p}_asp2_ionc_{l}'],
-        'columns': ['current'],
-        'units': 'μA',
-        'type': 'scalar'
-    },
+
+
     'mec': {
         # Variable: mms1_mec_r_gsm (MEC has r and v for position and velocity)
         'dataset': 'MMS{p}_MEC_{r}_{l}_{t}',
@@ -1044,24 +1019,7 @@ INSTRUMENT_DATASET_MAP = {
         'units': 'km',
         'type': 'vector'
     },
-    'state': {
-        # STATE uses ASCII files, not CDF - special handling needed
-        # Variable: mms1_defeph_pos (from ASCII)
-        'dataset': 'MMS{p}_DEFATT',
-        'var_patterns': ['mms{p}_defeph_pos', 'mms{p}_defeph_vel'],
-        'columns': ['X', 'Y', 'Z'],
-        'units': 'km',
-        'type': 'vector',
-        'note': 'STATE uses ASCII files - limited CDAWeb support'
-    },
-    'tqf': {
-        # Tetrahedron Quality Factor - no probe number
-        'dataset': 'MMS_TETRAHEDRON_QF',
-        'var_patterns': ['mms_tetrahedron_qf'],
-        'columns': ['QF'],
-        'units': '',
-        'type': 'scalar'
-    },
+
 }
 
 

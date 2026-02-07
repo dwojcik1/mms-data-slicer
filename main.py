@@ -998,10 +998,7 @@ MMS_INSTRUMENTS = {
         "key": "scm", "active": True,
         "desc": "Load data from the MMS Search Coil Magnetometer (SCM)"
     },
-    "FGM+SCM Data (FSM)": {
-        "key": "fsm", "active": True,
-        "desc": "Load data from the MMS FSM (FGM + SCM) data"
-    },
+
     "Electric Field Double Probe (EDP)": {
         "key": "edp", "active": True,
         "desc": "Load data from the MMS Electric field Double Probes (EDP) instrument"
@@ -1014,30 +1011,11 @@ MMS_INSTRUMENTS = {
         "key": "feeps", "active": True,
         "desc": "Load data from the MMS Fly's Eye Energetic Particle Sensor (FEEPS)"
     },
-    "Energetic Ion Spectrometer (EIS)": {
-        "key": "eis", "active": True,
-        "desc": "Load data from the MMS Energetic Ion Spectrometer (EIS)"
-    },
-    "Active Spacecraft Potential Control (ASPOC)": {
-        "key": "aspoc", "active": True,
-        "desc": "Load data from the MMS Active Spacecraft Potential Control (ASPOC)"
-    },
+
     "Hot Plasma Composition Analyzer (HPCA)": {
         "key": "hpca", "active": True,
         "desc": "Load data from the MMS Hot Plasma Composition Analyzer (HPCA)"
-    },
-    "Mission Ephemeris Coordinates (MEC)": {
-        "key": "mec", "active": True,
-        "desc": "Load data from the MMS Mission Ephemeris and Coordinates files"
-    },
-    "Attitude and Ephemeris (STATE)": {
-        "key": "state", "active": True,
-        "desc": "Load the state (ephemeris and attitude) data"
-    },
-    "Tetrahedron Quality Factor (TQF)": {
-        "key": "tqf", "active": True,
-        "desc": "Load the MMS tetrahedron quality factor data"
-    },
+    }
 }
 
 
@@ -1066,13 +1044,7 @@ INSTRUMENT_CONFIG = {
         "has_coord": False,
         "coords": []
     },
-    "fsm": {
-        "rates": ["BRST"],
-        "levels": ["L3"],
-        "types": ["8KHZ"],
-        "has_coord": False,
-        "coords": []
-    },
+
     "edp": {
         "rates": ["FAST", "SRVY", "SLOW", "BRST"],  # Default: fast per PySPEDAS
         "levels": ["L2", "L1B", "QL"],
@@ -1094,20 +1066,7 @@ INSTRUMENT_CONFIG = {
         "has_coord": False,
         "coords": []
     },
-    "eis": {
-        "rates": ["SRVY", "BRST"],
-        "levels": ["L2"],
-        "types": ["EXTOF", "PHXTOF", "ELECTRONENERGY"],  # Default: extof per PySPEDAS
-        "has_coord": False,
-        "coords": []
-    },
-    "aspoc": {
-        "rates": ["SRVY", "SITL"],
-        "levels": ["L2"],
-        "types": [],  # datatype ignored
-        "has_coord": False,
-        "coords": []
-    },
+
     "hpca": {
         "rates": ["SRVY", "BRST"],
         "levels": ["L2"],
@@ -1119,20 +1078,6 @@ INSTRUMENT_CONFIG = {
         "rates": ["SRVY", "BRST"],
         "levels": ["L2"],
         "types": ["EPHT89Q", "EPHT89D", "EPHTS04D"],
-        "has_coord": False,
-        "coords": []
-    },
-    "state": {
-        "rates": [],  # no rate for STATE
-        "levels": ["DEF", "PRED"],
-        "types": ["POS", "VEL", "SPINRAS", "SPINDEC"],
-        "has_coord": False,
-        "coords": []
-    },
-    "tqf": {
-        "rates": [],  # no rate for TQF
-        "levels": [],
-        "types": ["QUAL"],
         "has_coord": False,
         "coords": []
     },
@@ -1367,7 +1312,6 @@ def render_nasa_download_form():
                     'fpi': "DIS-MOMS: Ion moments (density, velocity) | DES-MOMS: Electron moments | DIST: Distribution functions",
                     'scm': "SCSRVY: Survey AC magnetic field | SCB: Burst waveform | SCHB: High-frequency burst",
                     'edp': "DCE: DC E-field (mV/m) | DCV: Spacecraft potential | ACE: AC E-field | HMFE: High-freq E-field",
-                    'eis': "EXTOF: Energetic ions (20-500 keV) | PHXTOF: Protons (10-600 keV) | ELECTRONENERGY: Electrons",
                 }.get(instrument_key, "Data product type")
                 datatype_display = st.selectbox("Datatype", types, index=0, help=type_help)
                 datatype = datatype_display.lower()
