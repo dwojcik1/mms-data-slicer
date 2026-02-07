@@ -5,8 +5,6 @@ Pure mathematical functions for spectral analysis, statistics, and turbulence.
 """
 
 import numpy as np
-from scipy import signal
-from scipy import stats
 from typing import Tuple, Dict, Optional, Union
 from dataclasses import dataclass
 import streamlit as st
@@ -379,6 +377,9 @@ def compute_pdf(
     )
 
 
+
+
+
 @st.cache_data(show_spinner=False)
 def compute_statistics(_data: np.ndarray) -> StatisticsResult:
     """
@@ -390,6 +391,12 @@ def compute_statistics(_data: np.ndarray) -> StatisticsResult:
     Returns:
         StatisticsResult with mean, median, std, variance, skewness, kurtosis
     """
+    if len(_data) == 0:
+        return StatisticsResult(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    
+    # Lazy import
+    from scipy import stats
+
     # Count NaN before cleaning
     n_nan = np.sum(~np.isfinite(_data))
     
@@ -724,17 +731,17 @@ def cached_stats(data_tuple: tuple) -> StatisticsResult:
 @st.cache_data(show_spinner=False)
 def compute_kde(
     data: np.ndarray,
-    kernel: str = 'gaussian',
+    kernel: str = 'gaussian',  # Kept for signature compatibility, but only gaussian is supported
     bandwidth: float = None,
     n_points: int = 200
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Compute Kernel Density Estimation using sklearn with scipy fallback.
+    Compute Kernel Density Estimation using scipy (lightweight).
     
     Args:
         data: 1D data array
-        kernel: Kernel type ('gaussian', 'tophat', 'epanechnikov', 'exponential', 'linear', 'cosine')
-        bandwidth: Bandwidth parameter (if None, uses Silverman's Rule)
+        kernel: Ignored (scipy uses gaussian) - kept for API compatibility
+        bandwidth: Bandwidth parameter (or None for scott/silverman)
         n_points: Number of points for the evaluation grid
         
     Returns:
@@ -744,8 +751,6 @@ def compute_kde(
     if len(data_clean) == 0:
         return np.array([]), np.array([])
         
-    data_reshaped = data_clean.reshape(-1, 1)
-
     min_val = data_clean.min()
     max_val = data_clean.max()
     range_val = max_val - min_val
@@ -753,37 +758,19 @@ def compute_kde(
     x_grid = np.linspace(min_val - margin, max_val + margin, n_points)
 
     try:
-        from sklearn.neighbors import KernelDensity
+        from scipy import stats
+        # scipy gaussian_kde uses 'scott' or 'silverman' rule, or a scalar constant for bandwidth multiplier
+        # mapping bandwidth to scipy format if provided as float (approximation)
+        bw_method = bandwidth if bandwidth else 'scott' 
         
-        # Silverman's Rule for bandwidth if not provided
-        if bandwidth is None:
-            std_dev = np.std(data_clean)
-            n = len(data_clean)
-            iqr = np.subtract(*np.percentile(data_clean, [75, 25]))
-            a = min(std_dev, iqr / 1.34) if iqr > 0 else std_dev
-            bw = 1.06 * a * n ** (-0.2)
-            if bw == 0: bw = 1.0
-            bandwidth = bw
-            
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(data_reshaped)
-        log_density = kde.score_samples(x_grid.reshape(-1, 1))
-        density = np.exp(log_density)
-        
+        kde = stats.gaussian_kde(data_clean, bw_method=bw_method)
+        density = kde(x_grid)
         return x_grid, density
         
-    except ImportError:
-        # Fallback to scipy if sklearn is not available (e.g. pending restart)
-        if kernel == 'gaussian':
-            try:
-                from scipy import stats
-                kde_scipy = stats.gaussian_kde(data_clean, bw_method=bandwidth)
-                density = kde_scipy(x_grid)
-                return x_grid, density
-            except Exception:
-                pass
-        
-        # If fallback fails or kernel not supported
-        raise ImportError(f"Advanced KDE ({kernel}) requires scikit-learn. Please restart the app server or install scikit-learn.")
+    except Exception as e:
+        # Fallback
+        print(f"KDE Error: {e}")
+        return np.array([]), np.array([])
 
 
 @st.cache_data(show_spinner=False)
