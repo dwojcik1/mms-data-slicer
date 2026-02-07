@@ -191,6 +191,7 @@ def compute_psd_welch(
     Compute PSD for MMS data, handling gaps by averaging PSDs of valid segments.
     """
     # 1. Clean NaNs (Basic cleanup) and keep time aligned
+    from scipy import signal
     data = np.asarray(_data).reshape(-1)
     time_data = np.asarray(_time_data).reshape(-1)
     n = min(len(data), len(time_data))
@@ -578,6 +579,7 @@ def find_target_alpha_range(
     Returns:
         Tuple of (f_min, f_max, fitted_alpha) for the best matching range.
     """
+    from scipy import signal
     # 1. Filter valid data
     mask = (_frequencies > 0) & (_power > 0) & np.isfinite(_frequencies) & np.isfinite(_power)
     f_valid = _frequencies[mask]
