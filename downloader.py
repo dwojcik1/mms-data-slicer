@@ -566,6 +566,7 @@ def download_cdf_pyspedas(download_info: Dict[str, Any]) -> Tuple[str, str]:
     datatype = download_info.get("datatype", "")
     coord = download_info.get("coord", "")
 
+    func_map = {
         "fgm": pyspedas.projects.mms.fgm,
         "scm": pyspedas.projects.mms.scm,
         "edp": pyspedas.projects.mms.edp,
