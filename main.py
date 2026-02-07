@@ -1545,7 +1545,7 @@ def render_sidebar():
         
         st.markdown("### Global Controls")
         
-        st.markdown("")  # Spacing
+
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
@@ -1680,22 +1680,7 @@ def render_sidebar():
             except:
                 pass
         
-        # Data Rate Warnings
-        data_rate = info.get('data_rate', '')
-        if data_rate:
-            st.markdown("**Data Rate Info**")
-            if data_rate == 'srvy':
-                st.caption("SRVY cadence ≈ **4.5 s** (FGM) / **4.5 s** (FPI)")
-            elif data_rate == 'brst':
-                st.warning("BURST mode — not available for long durations")
-            elif data_rate == 'fast':
-                st.caption("FAST cadence ≈ **4.5 s**")
-            if data_loaded and info:
-                st.caption(
-                    f"MMS{info.get('probe', '?')} {info.get('instrument', '')} "
-                    f"{info.get('coord', '')} ({info.get('data_rate', '')}/{info.get('level', '')})"
-                )
-            # no divider here
+
         
         # Analysis mode navigation
         st.markdown("### Analysis Mode")
@@ -1721,7 +1706,7 @@ def render_sidebar():
             dataset_keys = list(data.keys())
             if len(dataset_keys) == 1:
                 export_dataset = dataset_keys[0]
-                st.caption(f"Dataset: {export_dataset}")
+
             else:
                 export_dataset = st.selectbox("Dataset", dataset_keys, key="export_dataset")
             export_format = st.selectbox(
