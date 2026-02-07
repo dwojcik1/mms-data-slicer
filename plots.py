@@ -118,6 +118,7 @@ INSTRUMENT_UNITS = {
 }
 
 
+@st.cache_data(show_spinner=False)
 def plot_magnetic_field(
     df,
     title: str = "Magnetic Field",
@@ -295,6 +296,7 @@ PSD_CONFIG = {
 }
 
 
+@st.cache_data(show_spinner=False)
 def plot_velocity_field(
     df,
     title: str = "Bulk Velocity",
@@ -430,6 +432,7 @@ def plot_velocity_field(
 
 
 
+@st.cache_data(show_spinner=False)
 def plot_time_series(df, meta, title=None):
     """
     Unified "Publication-Standard" Time Series Plot.
@@ -591,6 +594,7 @@ def plot_time_series(df, meta, title=None):
     return fig
 
 
+@st.cache_data(show_spinner=False)
 def create_psd_plot(
     frequencies, 
     power, 
@@ -861,6 +865,7 @@ def create_psd_plot(
     return fig, alpha1, alpha2
 
 
+@st.cache_data(show_spinner=False)
 def create_pdf_plot(
     bin_centers, 
     density, 

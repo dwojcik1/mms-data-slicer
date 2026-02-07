@@ -1254,7 +1254,8 @@ def _download_cdf_and_extract(
     return df
 
 
-@st.cache_data(show_spinner="Loading instrument data...")
+
+@st.cache_data(show_spinner=False, ttl=3600)
 def load_mms_universal(
     instrument: str,
     trange: List[str],
@@ -1263,13 +1264,12 @@ def load_mms_universal(
     level: str = 'l2',
     coord: str = 'gse',
     datatype: str = ''
-) -> dict:
+) -> Dict[str, Any]:
     """
-    Universal MMS instrument data loader.
+    Universal data loader for MMS instruments (Cached).
     
-    Downloads data from NASA CDAWeb for any MMS instrument and returns
-    standardized Pandas DataFrames. Uses server-side caching for improved
-    performance on repeated requests.
+    Acts as a wrapper around specific instrument loaders to provide a unified interface
+    and enable Streamlit caching for all data requests.
     
     Args:
         instrument: Instrument key ('fgm', 'fpi', 'scm', 'edp', etc.)

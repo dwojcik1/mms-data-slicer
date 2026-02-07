@@ -420,9 +420,10 @@ def compute_statistics(_data: np.ndarray) -> StatisticsResult:
     )
 
 
+@st.cache_data(show_spinner=False)
 def compute_structure_function(
-    data: np.ndarray,
-    time_data: np.ndarray,
+    _data: np.ndarray,
+    _time_data: np.ndarray,
     orders: list = [1, 2, 3, 4],
     max_lag: Optional[int] = None
 ) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
@@ -464,7 +465,8 @@ def compute_structure_function(
     return results
 
 
-def compute_flatness(data: np.ndarray, scales: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+@st.cache_data(show_spinner=False)
+def compute_flatness(_data: np.ndarray, scales: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
     """
     Compute scale-dependent flatness (kurtosis of increments).
     
