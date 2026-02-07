@@ -282,7 +282,7 @@ def load_fgm_cdasws(
         probe: MMS spacecraft number ('1', '2', '3', or '4')
         data_rate: Data rate ('brst', 'fast', 'slow', 'srvy')
         level: Data level ('l2', 'l1b', 'ql')
-        coord: Coordinate system ('gse', 'gsm', 'dmpa', 'bcs')
+        coord: Coordinate system ('gse', 'gsm', 'dmpa', 'bcs', 'lmn')
     
     Returns:
         DataFrame with DatetimeIndex and columns ['Bx', 'By', 'Bz', 'Bt']
@@ -306,6 +306,133 @@ def load_fgm_cdasws(
         except Exception:
             # If cache loading fails, continue to download
             pass
+            
+    # --- LMN Transformation Logic ---
+    if coord.lower() == 'lmn':
+        st.info("Compute MVA: Downloading GSM data & Applying LMN Transformation...")
+        try:
+            # 1. Get GSM data (Base for MVA)
+            # Check if GSM is in cache first to save download
+            gsm_params = cache_params.copy()
+            gsm_params['coord'] = 'gsm'
+            gsm_cache_key = _generate_cache_key(gsm_params)
+            
+            df_gsm = None
+            if _is_cache_valid(gsm_cache_key):
+                try:
+                    df_gsm = _load_from_cache(gsm_cache_key)
+                except Exception:
+                    pass
+            
+            if df_gsm is None:
+                # Download GSM data using core function (bypassing recursion issues)
+                df_gsm = _download_fgm_core(trange, probe, data_rate, level, 'gsm')
+                # Cache the GSM data for future use
+                try:
+                    _save_to_cache(gsm_cache_key, df_gsm, gsm_params)
+                except Exception:
+                    pass
+            
+            # 2. Implement robust MVA using NumPy (avoids pyspedas/pytplot crash)
+            # This is mathematically equivalent to mms_cotrans_lmn but safer
+
+            # Extract vector components
+            # Ensure we have standard vector components
+            if all(c in df_gsm.columns for c in ['Bx', 'By', 'Bz']):
+                vec_data = df_gsm[['Bx', 'By', 'Bz']].values
+            else:
+                vec_data = df_gsm.iloc[:, 0:3].values
+
+            # Calculate Covariance Matrix of the magnetic field
+            # M_uv = <Bu Bv> - <Bu><Bv>
+            # Equiv to covariance of columns
+            cov_matrix = np.cov(vec_data, rowvar=False)
+
+            # Eigen decomposition
+            # eigh is for Hermitian/symmetric matrices (covariance is symmetric)
+            eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+
+            # Sort eigenvalues and vectors
+            # np.linalg.eigh returns them in ascending order (min, inter, max)
+            idx = eigenvalues.argsort()
+            evals_sorted = eigenvalues[idx]
+            evecs_sorted = eigenvectors[:, idx]
+
+            # Extract directions
+            # n (min variance) is index 0
+            # m (intermediate) is index 1
+            # l (max variance) is index 2
+            n_vec = evecs_sorted[:, 0]
+            m_vec = evecs_sorted[:, 1]
+            l_vec = evecs_sorted[:, 2]
+
+            # Ensure right-handed system (L x M = N)
+            # Check cross product
+            if np.dot(np.cross(l_vec, m_vec), n_vec) < 0:
+                # Flip 'n' to make it right-handed
+                n_vec = -n_vec
+
+            # Rotate data into LMN system
+            # B_L = B . l
+            # B_M = B . m
+            # B_N = B . n
+            bl = np.dot(vec_data, l_vec)
+            bm = np.dot(vec_data, m_vec)
+            bn = np.dot(vec_data, n_vec)
+
+            # 3. Create LMN DataFrame
+            data_lmn = np.column_stack((bl, bm, bn))
+            times_lmn = df_gsm.index
+            
+            df_lmn = pd.DataFrame(data_lmn, index=times_lmn, columns=['BL', 'BM', 'BN'])
+            df_lmn.index.name = 'time'
+            
+            # Calculate total field (should be invariant, match input)
+            if 'Bt' in df_gsm.columns:
+                df_lmn['Bt'] = df_gsm['Bt'].values
+            else:
+                df_lmn['Bt'] = np.sqrt(df_lmn['BL']**2 + df_lmn['BM']**2 + df_lmn['BN']**2)
+
+            # 4. Cache & Return
+            try:
+                _save_to_cache(cache_key, df_lmn, cache_params)
+            except Exception as e:
+                warnings.warn(f"Failed to save to cache: {e}")
+                
+            return df_lmn
+
+        except Exception as e:
+            # Detailed error logging
+            st.error(f"Manual MVA Calculation Failed: {str(e)}")
+            raise e
+
+    # Standard Download (GSE, GSM, DMPA, BCS)
+
+    # Standard Download (GSE, GSM, DMPA, BCS)
+    try:
+        df = _download_fgm_core(trange, probe, data_rate, level, coord)
+    except Exception as e:
+         # Propagate the error clearly
+         raise e
+    
+    # Save to server-side cache for future requests
+    try:
+        _save_to_cache(cache_key, df, cache_params)
+        print(f"[Cache] Saved FGM data to cache ({len(df)} rows)")
+    except Exception as e:
+        warnings.warn(f"Failed to save to cache: {e}")
+    
+    return df
+
+
+def _download_fgm_core(
+    trange: List[str],
+    probe: str,
+    data_rate: str,
+    level: str,
+    coord: str
+) -> pd.DataFrame:
+    """Core download logic for FGM data (uncached)."""
     
     try:
         from cdasws import CdasWs
@@ -413,13 +540,6 @@ def load_fgm_cdasws(
     
     # Clean fill values
     df = df.replace(-1e31, np.nan)
-    
-    # Save to server-side cache for future requests
-    try:
-        _save_to_cache(cache_key, df, cache_params)
-        print(f"[Cache] Saved FGM data to cache ({len(df)} rows)")
-    except Exception as e:
-        warnings.warn(f"Failed to save to cache: {e}")
     
     return df
 

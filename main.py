@@ -1049,7 +1049,7 @@ INSTRUMENT_CONFIG = {
         "levels": ["L2", "L1B", "QL"],
         "types": [],  # datatype not used for FGM
         "has_coord": True,
-        "coords": ["GSM", "GSE"]
+        "coords": ["GSM", "GSE", "LMN"]
     },
     "fpi": {
         "rates": ["FAST", "BRST"],
@@ -1057,7 +1057,7 @@ INSTRUMENT_CONFIG = {
         "types": ["DIS-MOMS", "DES-MOMS", "DIS-MOMSAUX", "DES-MOMSAUX", 
                   "DIS-DIST", "DES-DIST", "DIS-PARTMOMS", "DES-PARTMOMS"],
         "has_coord": True,
-        "coords": ["GSM", "GSE"]
+        "coords": ["GSM", "GSE", "LMN"]
     },
     "scm": {
         "rates": ["SRVY", "BRST", "FAST", "SLOW"],
@@ -1688,7 +1688,7 @@ def render_sidebar():
         if data_loaded:
             analysis_mode = st.sidebar.radio(
                 "Analysis Mode",
-                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments", "Orbit & Field Models", "Summary"],
+                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments (PVI)", "Summary"],
                 label_visibility="collapsed",
                 key="analysis_mode"
             )
@@ -1781,10 +1781,8 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         render_psd_analysis(data, info, subsample_pts)
     elif analysis_mode == "PDF & Moments":
         render_pdf_analysis(data, info, subsample_pts)
-    elif analysis_mode == "Partial Variance of Increments":
+    elif analysis_mode == "Partial Variance of Increments (PVI)":
         render_pvi_analysis(data, info)
-    elif analysis_mode == "Orbit & Field Models":
-        render_orbit_analysis(st.session_state.download_info.get('trange'), st.session_state.download_info.get('probe'))
     elif analysis_mode == "Summary":
         render_summary_analysis(data, info, subsample_pts)
 
@@ -2181,8 +2179,17 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
     st.caption("💡 **Tip:** Point on the plot to see exact values • Click legend items to show/hide • Drag to zoom • Double-click to reset • Toolbar in top-right for more")
     
     try:
+        # Construct dynamic title & metadata
+        probe = info.get('probe', '?')
+        instr = info.get('instrument', 'FGM').upper()
+        coord = info.get('coord', 'GSM').upper()
+        rate = info.get('data_rate', 'srvy')
+        level = info.get('level', 'l2')
+        dataset_str = f"MMS{probe} {instr} {coord} ({rate}/{level})"
+        plot_title = f"{dataset_str} | {selected_col}"
+
         fig, alpha1, alpha2 = create_psd_plot(
-            psd.frequencies, psd.power, title="",
+            psd.frequencies, psd.power, title=plot_title,
             psd_units=units, fit1_range=fit1_range, fit2_range=fit2_range
         )
         st.plotly_chart(fig, use_container_width=False, config=PSD_CONFIG)
@@ -2214,13 +2221,6 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
                     )
         
         # Metadata Footer
-        probe = info.get('probe', '?')
-        instr = info.get('instrument', 'FGM').upper()
-        coord = info.get('coords', 'GSM').upper()
-        rate = info.get('data_rate', 'srvy')
-        level = info.get('level', 'l2')
-        dataset_str = f"MMS{probe} {instr} {coord} ({rate}/{level})"
-
         st.markdown(
             f"<div style='font-size: 0.9em; color: #555; margin-top: 10px;'>"
             f"<b>Dataset:</b> {dataset_str}<br>"
@@ -2240,7 +2240,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
     import pandas as pd
     import plotly.graph_objects as go
     # Ensure physics functions are available
-    from physics import get_pdf_robust, cached_stats, compute_kde
+    from physics import compute_pdf_robust, cached_stats, compute_kde
     
     st.markdown("### PDF & Moments")
     
@@ -2301,7 +2301,7 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
             
             # Histogram Calculation
             if plot_type in ["Histogram", "Combined"]:
-                pdf_res = get_pdf_robust(tuple(clean_data), bins)
+                pdf_res = compute_pdf_robust(tuple(clean_data), bins)
                 bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
                 
                 fig.add_trace(go.Bar(
@@ -2448,7 +2448,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
     from physics import compute_pvi
     from plots import PLOTLY_CONFIG, PUBLICATION_LAYOUT, COLORS, GRID_COLOR
     
-    st.markdown("### Partial Variance of Increments")
+    st.markdown("### Partial Variance of Increments (PVI)")
     
     # 1. Definition Section
     st.markdown(r"""
@@ -2486,25 +2486,28 @@ def render_pvi_analysis(datasets: dict, info: dict):
     # 3. Processing & Visualization per Dataset
     for key, df in datasets.items():
         # Clean data (ensure numeric)
-        # Assuming df has Bx, By, Bz columns.
+        # Assuming df has Bx, By, Bz columns OR BL, BM, BN.
         cols = df.columns
-        # Try to find vector components
-        vec_cols = [c for c in cols if any(x in c.upper() for x in ['BX', 'BY', 'BZ'])]
         
-        if len(vec_cols) < 3:
-            st.warning(f"Dataset {key} does not appear to have 3 vector components (Bx, By, Bz). Skipping.")
+        # 1. Try Standard XYZ
+        bx = next((c for c in cols if c.upper() in ['BX', 'VX', 'EX', 'X']), None)
+        by = next((c for c in cols if c.upper() in ['BY', 'VY', 'EY', 'Y']), None)
+        bz = next((c for c in cols if c.upper() in ['BZ', 'VZ', 'EZ', 'Z']), None)
+        
+        # 2. Try LMN (L->x, M->y, N->z)
+        bl = next((c for c in cols if c in ['BL', 'VL', 'B_L']), None)
+        bm = next((c for c in cols if c in ['BM', 'VM', 'B_M']), None)
+        bn = next((c for c in cols if c in ['BN', 'VN', 'B_N']), None)
+        
+        if bx and by and bz:
+            vector_cols = [bx, by, bz]
+        elif bl and bm and bn:
+            vector_cols = [bl, bm, bn]
+        else:
+            st.warning(f"Dataset {key} does not appear to have 3 vector components (XYZ or LMN). Skipping.")
             continue
             
-        # Identify components
-        bx = next((c for c in vec_cols if 'X' in c.upper()), None)
-        by = next((c for c in vec_cols if 'Y' in c.upper()), None)
-        bz = next((c for c in vec_cols if 'Z' in c.upper()), None)
-        
-        if not (bx and by and bz):
-            st.warning(f"Could not identify Bx, By, Bz in {key}. Found: {vec_cols}")
-            continue
-            
-        data_vectors = df[[bx, by, bz]].values
+        data_vectors = df[vector_cols].values
         clean_mask = np.isfinite(data_vectors).all(axis=1)
         clean_vectors = data_vectors[clean_mask]
         clean_time = df.index[clean_mask]
@@ -2605,72 +2608,6 @@ def render_pvi_analysis(datasets: dict, info: dict):
             st.metric("Detected Structures", f"{n_peaks}", help=f"Number of points where PVI > {threshold}")
         with sc3:
             st.metric("Increment Kurtosis", f"{kurtosis:.2f}", help="Pearson Kurtosis of |ΔB|. Values > 3 indicate intermittency.")
-
-
-
-def render_orbit_analysis(trange, probe):
-    """
-    Render Orbit and Tsyganenko Model Analysis.
-    """
-    from models import run_mms_tsyganenko
-    from plots import plot_model_comparison, PLOTLY_CONFIG
-    
-    st.markdown("### MMS Orbit & Tsyganenko Field Model Comparison")
-    st.markdown("Compare in-situ magnetic field measurements with the **Tsyganenko 96 (T96)** external field model.")
-    
-    if not trange:
-        st.warning("No data loaded. Please load a dataset first to define the time range.")
-        return
-
-    # Controls
-    with st.container():
-        c1, c2, c3 = st.columns([1, 1, 2])
-        with c1:
-            # Probe selector (default to current if available, else 1)
-            current_probe = str(probe) if probe else '1'
-            selected_probe = st.selectbox("MMS Probe", ['1', '2', '3', '4'], index=int(current_probe)-1)
-        
-        with c2:
-            st.markdown("<br>", unsafe_allow_html=True) 
-            run_btn = st.button("Run Model Comparison", type="primary", use_container_width=True)
-            
-        with c3:
-            st.info(f"**Interval:** {trange[0]} to {trange[1]}")
-
-    st.divider()
-
-    if run_btn:
-        with st.spinner("Running Physics Pipeline: MEC → FGM → OMNI → T96... (This may take a moment)"):
-            try:
-                # Run the model
-                results = run_mms_tsyganenko(trange, probe=selected_probe)
-                
-                if results:
-                    st.success("Model Run Complete!")
-                    
-                    # Visualization
-                    fig = plot_model_comparison(
-                        results['measured'], 
-                        results['model'], 
-                        results['residual'],
-                        title=f"MMS{selected_probe} B-Field vs T96 Model ({results['metadata']['coords']})"
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
-                    
-                    # Metrics
-                    res = results['residual']
-                    rms = np.sqrt((res**2).mean())
-                    
-                    st.markdown("#### Residual Statistics (Observed - Model)")
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("RMS ΔBx", f"{rms['dBx']:.2f} nT")
-                    c2.metric("RMS ΔBy", f"{rms['dBy']:.2f} nT")
-                    c3.metric("RMS ΔBz", f"{rms['dBz']:.2f} nT")
-                    
-            except Exception as e:
-                st.error(f"Analysis Failed: {str(e)}")
-                st.exception(e)
 
 
 def main():

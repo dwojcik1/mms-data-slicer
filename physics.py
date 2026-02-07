@@ -669,7 +669,7 @@ def find_target_alpha_range(
 
 
 @st.cache_data(show_spinner=False)
-def get_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
+def compute_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
     """
     Cached wrapper for PDF computation with strict shape validation.
     Prevents broadcasting errors by ensuring bin_centers and density match.
@@ -678,23 +678,28 @@ def get_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
     
     # Handle singular or empty data
     if len(data) == 0 or np.ptp(data) == 0:
+        empty = np.array([])
         return PDFResult(
-            bin_centers=np.array([]),
-            density=np.array([]),
-            bin_edges=np.array([]),
+            bin_centers=empty,
+            density=empty,
+            bin_edges=empty,
             n_samples=len(data),
             n_bins=bins
         )
 
-    # Compute Histogram
-    hist, bin_edges = np.histogram(data, bins=bins, density=True)
+    # 1. Define strict edges to guarantee basic shape consistency
+    min_val, max_val = data.min(), data.max()
+    # Expand slightly to cover endpoints robustly
+    bin_edges = np.linspace(min_val, max_val, bins + 1)
     
-    # Calculate Centers
+    # 2. Compute Histogram with fixed edges
+    hist, _ = np.histogram(data, bins=bin_edges, density=True)
+    
+    # 3. Calculate Centers
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     
-    # STRICT VALIDATION: Ensure lengths match
+    # Final sanity check (should always pass with linspace)
     if len(hist) != len(bin_centers):
-        # Fallback: trim to match the smaller length (though numpy usually guarantees match)
         min_len = min(len(hist), len(bin_centers))
         hist = hist[:min_len]
         bin_centers = bin_centers[:min_len]
@@ -705,7 +710,7 @@ def get_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
         density=hist,
         bin_edges=bin_edges,
         n_samples=len(data),
-        n_bins=len(hist) # Actual bins used
+        n_bins=len(hist)
     )
 
 

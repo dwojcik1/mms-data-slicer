@@ -62,6 +62,9 @@ BFIELD_COLORS = {
     'B1': '#2ca02c',
     'B2': '#d62728',
     'B3': '#000000',
+    'BL': '#1f77b4',   # Max Variance (Blue)
+    'BM': '#2ca02c',   # Intermediate (Green)
+    'BN': '#d62728',   # Min Variance (Red)
 }
 
 # Velocity field colors (same scheme)
@@ -74,6 +77,9 @@ VELOCITY_COLORS = {
     'V1': '#2ca02c',
     'V2': '#d62728',
     'V3': '#000000',
+    'VL': '#1f77b4',
+    'VM': '#2ca02c',
+    'VN': '#d62728',
 }
 
 # Electric field colors (same scheme)
@@ -152,6 +158,9 @@ def plot_magnetic_field(
         'B1': 'B<sub>y</sub>',
         'B2': 'B<sub>z</sub>',
         'B3': '|<b>B</b>|',
+        'BL': 'B<sub>L</sub>',
+        'BM': 'B<sub>M</sub>',
+        'BN': 'B<sub>N</sub>',
     }
 
     
@@ -326,6 +335,9 @@ def plot_velocity_field(
         'V1': 'V<sub>y</sub>',
         'V2': 'V<sub>z</sub>',
         'V3': '|<b>V</b>|',
+        'VL': 'V<sub>L</sub>',
+        'VM': 'V<sub>M</sub>',
+        'VN': 'V<sub>N</sub>',
     }
     
     # Plot each component
@@ -432,33 +444,62 @@ def plot_time_series(df, meta, title=None):
     fig = go.Figure()
 
     # --- 1. Trace Generation ---
+    # --- 1. Trace Generation ---
     if meta['type'] == 'vector':
         # Mapping rules for generic vector components
-        # We look for x, y, z, and total magnitude columns
+        # We look for x, y, z OR l, m, n and total magnitude columns
         cols = df.columns
+        
+        # Check for LMN first (since it's a specific mode)
+        l_col = next((c for c in cols if c.endswith('L')), None)
+        m_col = next((c for c in cols if c.endswith('M')), None)
+        n_col = next((c for c in cols if c.endswith('N')), None)
+        
+        # Check for Standard XYZ
         x_col = next((c for c in cols if c.lower().endswith('x') or c.lower() == 'x'), None)
         y_col = next((c for c in cols if c.lower().endswith('y') or c.lower() == 'y'), None)
         z_col = next((c for c in cols if c.lower().endswith('z') or c.lower() == 'z'), None)
+        
         tot_col = next((c for c in cols if c.lower() in ['tot', 'bt', 'vt', 'et', 'mag', 't']), None)
 
-        if x_col:
+        # Plot LMN if present
+        if l_col and m_col and n_col:
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[l_col], mode='lines',
+                name=f"{meta['label']}_L",
+                line=dict(color="#1f77b4", width=1.5) # Blue
+            ))
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[m_col], mode='lines',
+                name=f"{meta['label']}_M",
+                line=dict(color="#2ca02c", width=1.5) # Green
+            ))
+            fig.add_trace(go.Scatter(
+                x=df.index, y=df[n_col], mode='lines',
+                name=f"{meta['label']}_N",
+                line=dict(color="#d62728", width=1.5) # Red
+            ))
+            
+        # Fallback to XYZ
+        elif x_col:
             fig.add_trace(go.Scatter(
                 x=df.index, y=df[x_col], mode='lines',
                 name=f"{meta['label']}_x",
                 line=dict(color="#1f77b4", width=1.5)
             ))
-        if y_col:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[y_col], mode='lines',
-                name=f"{meta['label']}_y",
-                line=dict(color="#2ca02c", width=1.5)
-            ))
-        if z_col:
-            fig.add_trace(go.Scatter(
-                x=df.index, y=df[z_col], mode='lines',
-                name=f"{meta['label']}_z",
-                line=dict(color="#d62728", width=1.5)
-            ))
+            if y_col:
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df[y_col], mode='lines',
+                    name=f"{meta['label']}_y",
+                    line=dict(color="#2ca02c", width=1.5)
+                ))
+            if z_col:
+                fig.add_trace(go.Scatter(
+                    x=df.index, y=df[z_col], mode='lines',
+                    name=f"{meta['label']}_z",
+                    line=dict(color="#d62728", width=1.5)
+                ))
+        
         if tot_col:
             fig.add_trace(go.Scatter(
                 x=df.index, y=df[tot_col], mode='lines',
