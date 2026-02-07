@@ -47,7 +47,7 @@ The **MMS Turbulence Laboratory** is a specialized tool designed for the analysi
     pip install -r requirements.txt
     ```
 
-    *Requires `streamlit`, `numpy`, `pandas`, `scipy`, `plotly`, `cdasws`, and `scikit-learn`.*
+    *Requires `streamlit`, `numpy`, `pandas`, `scipy`, `plotly`, and `pyspedas`.*
 
 ##  Usage
 
