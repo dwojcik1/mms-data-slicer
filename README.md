@@ -79,3 +79,4 @@ The tool is being actively developed into a comprehensive suite for turbulence a
 *Built with Python & Streamlit.*
 
 **Love you Maya <3**
+**マヤ、本当に愛してるよ <3**
