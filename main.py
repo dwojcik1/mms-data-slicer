@@ -1688,7 +1688,7 @@ def render_sidebar():
         if data_loaded:
             analysis_mode = st.sidebar.radio(
                 "Analysis Mode",
-                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments (PVI)", "Summary"],
+                ["Time Series", "Power Spectral Density", "PDF & Moments", "Partial Variance of Increments", "Summary"],
                 label_visibility="collapsed",
                 key="analysis_mode"
             )
@@ -1781,7 +1781,7 @@ def render_analysis(analysis_mode: str, subsample_pts: int):
         render_psd_analysis(data, info, subsample_pts)
     elif analysis_mode == "PDF & Moments":
         render_pdf_analysis(data, info, subsample_pts)
-    elif analysis_mode == "Partial Variance of Increments (PVI)":
+    elif analysis_mode == "Partial Variance of Increments":
         render_pvi_analysis(data, info)
     elif analysis_mode == "Summary":
         render_summary_analysis(data, info, subsample_pts)
@@ -2446,7 +2446,7 @@ def render_pvi_analysis(datasets: dict, info: dict):
     from physics import compute_pvi
     from plots import PLOTLY_CONFIG, PUBLICATION_LAYOUT, COLORS, GRID_COLOR
     
-    st.markdown("### Partial Variance of Increments (PVI)")
+    st.markdown("### Partial Variance of Increments")
     
     # 1. Definition Section
     st.markdown(r"""
