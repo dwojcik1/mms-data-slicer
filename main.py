@@ -1866,13 +1866,24 @@ def render_time_series_analysis(datasets: dict, info: dict, subsample_pts: int):
         
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
         
-        # --- Caption ---
+        # --- Caption with Metadata and Cadence ---
         if len(df) > 1:
             try:
-                dt = (df.index[1] - df.index[0]).total_seconds()
-                fs = 1 / dt if dt > 0 else 0
-                st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points | {fs:.1f} Hz")
-            except:
+                # Calculate average cadence
+                time_diffs = (df.index[1:] - df.index[:-1]).total_seconds()
+                avg_dt = np.median(time_diffs)
+                fs = 1 / avg_dt if avg_dt > 0 else 0
+                
+                # Metadata string
+                instr = info.get('instrument', key).upper()
+                rate = info.get('data_rate', '').upper()
+                lvl = info.get('level', '').lower()
+                
+                meta_str = f"MMS{probe} {instr} ({rate}/{lvl}) | {coord}"
+                stats_str = f"{len(plot_df):,} displayed / {len(df):,} total points | fs ≈ {fs:.2f} Hz (dt ≈ {avg_dt:.4f} s)"
+                
+                st.caption(f"**{meta_str}** — {stats_str}")
+            except Exception:
                 st.caption(f"{key}: {len(plot_df):,} of {len(df):,} points")
         
         # Subsample hint
