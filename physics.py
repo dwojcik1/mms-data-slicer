@@ -527,6 +527,7 @@ def fit_power_law(
     Returns:
         Tuple of (alpha, A, r_squared) where y = A * x^alpha
     """
+    from scipy import stats
     # Filter to positive values
     mask = (_x > 0) & (_y > 0) & np.isfinite(_x) & np.isfinite(_y)
     
@@ -579,7 +580,7 @@ def find_target_alpha_range(
     Returns:
         Tuple of (f_min, f_max, fitted_alpha) for the best matching range.
     """
-    from scipy import signal
+    from scipy import signal, stats
     # 1. Filter valid data
     mask = (_frequencies > 0) & (_power > 0) & np.isfinite(_frequencies) & np.isfinite(_power)
     f_valid = _frequencies[mask]
