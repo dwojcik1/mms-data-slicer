@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="MMS Turbulence Laboratory",
     page_icon=":satellite:",
     layout="wide",
-    initial_sidebar_state="auto"
+    initial_sidebar_state="expanded"
 )
 
 
@@ -149,11 +149,11 @@ def view_mission_modal():
     st.markdown("""
     <div class="mission-modal">
         <div class="mission-header">
-            <h3>🌌 Understanding Magnetic Reconnection</h3>
+            <h3>🌌 NASA Magnetospheric Multiscale (MMS) Mission</h3>
             <p>
-                MMS uses Earth's magnetosphere as a natural laboratory to study the 
-                microphysics of magnetic reconnection—a fundamental explosive process 
-                occurring throughout the universe.
+                MMS investigates the fundamental physics of <strong>magnetic reconnection</strong>, a universal process 
+                that converts magnetic energy into particle kinetic energy and heat. It is the first mission dedicated 
+                to studying the electron diffusion region at the microphysics scale.
             </p>
         </div>
     </div>
@@ -161,7 +161,7 @@ def view_mission_modal():
     
     # Key Metrics - Bento Row
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown("""
@@ -174,64 +174,102 @@ def view_mission_modal():
     with col2:
         st.markdown("""
         <div class="metric-box">
-            <div class="metric-value">3 RPM</div>
-            <div class="metric-label">Rotation Rate<br>Spin-Stabilized</div>
+            <div class="metric-value">10 km</div>
+            <div class="metric-label">Min Separation<br>Electron Scale</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with col3:
         st.markdown("""
         <div class="metric-box">
+            <div class="metric-value">30 ms</div>
+            <div class="metric-label">Electron Res.<br>Fast Plasma (FPI)</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div class="metric-box">
             <div class="metric-value">25</div>
-            <div class="metric-label">Sensors<br>11 Instruments per S/C</div>
+            <div class="metric-label">Sensors<br>11 Instruments/SC</div>
         </div>
         """, unsafe_allow_html=True)
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Spacecraft Specs
-    st.markdown("""
-    <div class="specs-box">
-        <h4>🛰️ Spacecraft Specifications</h4>
-        <ul>
-            <li><strong>Dimensions:</strong> Octagonal shape, ~11 ft wide × 4 ft high</li>
-            <li><strong>Orbit:</strong> Highly elliptical Earth orbit to scan both day-side and night-side reconnection regions</li>
-            <li><strong>Formation:</strong> Four identical spacecraft flying in precise tetrahedral formation</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Science Objectives
-    st.markdown("""
-    <div class="science-objectives">
-        <h4>🔬 Core Science Questions</h4>
-        <ul>
-            <li>What determines when reconnection starts and stops?</li>
-            <li>How does reconnection accelerate particles to high energies?</li>
-            <li>What is the structure of the electron diffusion region?</li>
-            <li>How does energy get converted from magnetic fields to particles?</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    # Mission Specs & Scientific Objectives
+    col_specs, col_obj = st.columns(2)
+
+    with col_specs:
+        st.markdown("""
+        <div class="specs-box">
+            <h4>🛰️ Mission Specifications</h4>
+            <ul>
+                <li><strong>Orbit:</strong> Highly elliptical Earth orbit (Day-side & Night-side).</li>
+                <li><strong>Formation:</strong> Adjustable tetrahedron (10km - 400km) to resolve 3D structure.</li>
+                <li><strong>Spin:</strong> 3 RPM spin-stabilized.</li>
+                <li><strong>Goal:</strong> Unveil the microphysics of reconnection (decoupling, acceleration).</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        # Context Image
+        st.image("assets/mms_formation.jpg", caption="MMS Formation (NASA SVS)", use_container_width=True)
+
+    with col_obj:
+        st.markdown("""
+        <div class="science-objectives">
+            <h4>🔬 Scientific Objectives</h4>
+            <ul>
+                <li><strong>Reconnection Physics:</strong> What determines when it starts/stops? How does field lines break and reconnect?</li>
+                <li><strong>Particle Acceleration:</strong> How are particles heated and accelerated to high energies?</li>
+                <li><strong>Turbulence:</strong> What is the role of turbulence in the reconnection process?</li>
+                <li><strong>Diffusion Region:</strong> Resolve the structure of the Electron Diffusion Region (EDR).</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="specs-box" style="margin-top: 16px;">
+            <h4>📡 Instrument Suite</h4>
+             <ul>
+                <li><strong>Fields (1000 Hz):</strong> FGM (Magnetic), EDP (Electric), SCM (Waves), EDI (E-Field/B-Field).</li>
+                <li><strong>Plasma (FPI/HPCA):</strong> DES/DIS (30ms/150ms res), Ion Composition (H+, He+, O+).</li>
+                <li><strong>Energetic Particles:</strong> FEEPS (Electrons), EIS (Ions).</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        # Instrument Layout Image (Moved here)
+        st.image("assets/mms_spacecraft.jpg", caption="MMS Spacecraft Instrument Layout", use_container_width=True)
+
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Spacecraft Diagram
+    # Recent Discoveries (2023-2026)
     st.markdown("""
-    <div style="text-align: center; margin: 16px 0;">
-        <p style="color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 8px;">
-            🛰️ MMS Spacecraft Instrument Layout
-        </p>
+    <div class="specs-box" style="margin-top: 0px;">
+        <h4>🚀 Recent Discoveries (2023-2026)</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <ul>
+                    <li><strong>Reconnection Electric Fields (2023):</strong> Direct measurement of the non-ideal electric field terms driving magnetic flux transport, validating kinetic theory.</li>
+                    <li><strong>Magnetosheath Turbulence (2024):</strong> Identification of "electron-only" reconnection events in highly turbulent magnetosheath plasma.</li>
+                </ul>
+            </div>
+            <div>
+                <ul>
+                    <li><strong>Cold Ion Effects (2025):</strong> New evidence that cold plasma of ionospheric origin significantly alters the reconnection rate at the magnetopause.</li>
+                    <li><strong>Machine Learning Catalogs:</strong> Automated detection of over 5000+ EDR candidates now enabling statistical studies of diffusion region structure.</li>
+                </ul>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    st.image("assets/mms_spacecraft.jpg", use_container_width=True)
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
     
     # Close button
     if st.button("Close", use_container_width=True, type="primary"):
         st.rerun()
+
 
 
 # ============================================================================

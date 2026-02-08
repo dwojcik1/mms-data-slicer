@@ -8,6 +8,10 @@ textColor = "#f8fafc"
 [server]
 maxUploadSize = 800
 maxMessageSize = 800
+enableStaticServing = true
+
+[global]
+disableWidgetStateDuplicationWarning = true
 
 [browser]
 gatherUsageStats = false

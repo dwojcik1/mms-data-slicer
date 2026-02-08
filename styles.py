@@ -212,6 +212,78 @@ def _get_cached_css() -> str:
         border-radius: 16px !important;
         padding: 1rem !important;
     }
+
+    /* Bento Box Common Styles */
+    .metric-box,
+    .specs-box,
+    .science-objectives {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 20px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .metric-box:hover,
+    .specs-box:hover,
+    .science-objectives:hover {
+        transform: translateY(-2px);
+        border-color: rgba(129, 140, 248, 0.4);
+    }
+
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 4px;
+    }
+
+    .metric-label {
+        font-size: 0.85rem;
+        color: rgba(248, 250, 252, 0.6);
+        line-height: 1.4;
+    }
+
+    .specs-box h4,
+    .science-objectives h4 {
+        margin-top: 0;
+        margin-bottom: 12px;
+        color: #e0e7ff;
+        font-size: 1.1rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 8px;
+    }
+
+    .specs-box ul,
+    .science-objectives ul {
+        list-style-type: none;
+        padding-left: 0;
+        margin: 0;
+        flex-grow: 1; /* Pushes content to fill space */
+    }
+
+    .specs-box li,
+    .science-objectives li {
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        color: rgba(248, 250, 252, 0.8);
+        padding-left: 14px;
+        position: relative;
+    }
+
+    .specs-box li::before,
+    .science-objectives li::before {
+        content: "•";
+        color: #818cf8;
+        position: absolute;
+        left: 0;
+        font-weight: bold;
+    }
     
     [data-testid="stMetric"] label {
         color: rgba(248, 250, 252, 0.5) !important;
