@@ -6,6 +6,8 @@ Kinetic scale time series processing for space plasma physics.
 
 import streamlit as st
 import streamlit.components.v1 as components
+import time
+from contextlib import contextmanager
 
 # MUST be first Streamlit command
 st.set_page_config(
@@ -34,6 +36,20 @@ from plots import plot_time_series, create_psd_plot, create_pdf_plot, create_sta
 # ============================================================================
 # Utilities
 # ============================================================================
+
+@contextmanager
+def _timed(label: str, enabled: bool, container=None):
+    """Simple timing helper for optional telemetry."""
+    if not enabled:
+        yield
+        return
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - start
+        target = container if container is not None else st
+        target.caption(f"Timing: {label} {elapsed:.2f}s")
 
 def _subsample_df(df, target_pts: int):
     """Return a subsampled DataFrame with ~target_pts rows (uniformly spaced)."""
@@ -615,20 +631,20 @@ body {
 # Cached Functions
 # ============================================================================
 
-@st.cache_data
-def cached_psd(data_tuple, time_tuple, fs_override: float = 0.0):
-    data = np.array(data_tuple)
-    time_data = np.array(time_tuple, dtype='datetime64[ns]')
+@st.cache_data(show_spinner=False, ttl=3600, max_entries=64)
+def cached_psd(data, time_data, fs_override: float = 0.0):
+    data_arr = np.asarray(data)
+    time_arr = np.asarray(time_data, dtype='datetime64[ns]')
     fs = fs_override if fs_override and fs_override > 0 else None
-    return compute_psd_welch(data, time_data, fs_override=fs)
+    return compute_psd_welch(data_arr, time_arr, fs_override=fs)
 
-@st.cache_data  
-def cached_pdf(data_tuple, n_bins):
-    return compute_pdf(np.array(data_tuple), n_bins=n_bins)
+@st.cache_data(show_spinner=False, ttl=3600, max_entries=64)
+def cached_pdf(data, n_bins):
+    return compute_pdf(np.asarray(data), n_bins=n_bins)
 
-@st.cache_data
-def cached_stats(data_tuple):
-    return compute_statistics(np.array(data_tuple))
+@st.cache_data(show_spinner=False, ttl=3600, max_entries=128)
+def cached_stats(data):
+    return compute_statistics(np.asarray(data))
 
 @st.cache_data
 def cached_metadata(raw_name: str, units: str = '') -> dict:
@@ -762,7 +778,8 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
         if method == "PSD":
             st.markdown(f"#### PSD: {selected_key} {selected_col}")
             try:
-                psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
+                with _timed("PSD compute", st.session_state.get("perf_telemetry", False)):
+                    psd = cached_psd(data, time_data)
                 
                 # Frequency range for custom fit
                 f_pos = psd.frequencies[psd.frequencies > 0]
@@ -837,7 +854,8 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
             logy = c2.checkbox("Log Y", key="spectral_logy")
             
             try:
-                pdf = cached_pdf(tuple(clean_data), bins)
+                with _timed("PDF compute", st.session_state.get("perf_telemetry", False)):
+                    pdf = cached_pdf(clean_data, bins)
                 units = "nT" if 'B' in selected_col else "km/s"
                 fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} ({units})", log_y=logy)
                 st.plotly_chart(fig, use_container_width=True)
@@ -847,7 +865,8 @@ def render_multi_dataset_analysis(datasets: dict, info: dict):
         else:
             st.markdown(f"#### Summary: {selected_key} {selected_col}")
             try:
-                stats = cached_stats(tuple(clean_data))
+                with _timed("Stats compute", st.session_state.get("perf_telemetry", False)):
+                    stats = cached_stats(clean_data)
                 for n, v in create_stats_display(stats).items():
                     st.text(f"{n}: {v}")
             except Exception as e:
@@ -954,7 +973,8 @@ def render_dataframe_analysis(df, time_data):
         if method == "PSD":
             st.markdown(f"#### PSD: {selected_col}")
             try:
-                psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
+                with _timed("PSD compute", st.session_state.get("perf_telemetry", False)):
+                    psd = cached_psd(data, time_data)
                 fig, _ = create_psd_plot(psd.frequencies, psd.power, title=f"PSD: {selected_col}",
                                       psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$")
                 st.plotly_chart(fig, use_container_width=True)
@@ -971,7 +991,8 @@ def render_dataframe_analysis(df, time_data):
             cp, cs = st.columns([2, 1])
             with cp:
                 try:
-                    pdf = cached_pdf(tuple(clean_data), bins)
+                    with _timed("PDF compute", st.session_state.get("perf_telemetry", False)):
+                        pdf = cached_pdf(clean_data, bins)
                     fig = create_pdf_plot(pdf.bin_centers, pdf.density, xlabel=f"{selected_col} (nT)", log_y=logy)
                     st.plotly_chart(fig, use_container_width=True)
                 except Exception as e:
@@ -979,7 +1000,8 @@ def render_dataframe_analysis(df, time_data):
             with cs:
                 st.markdown("##### Statistics")
                 try:
-                    stats = cached_stats(tuple(clean_data))
+                    with _timed("Stats compute", st.session_state.get("perf_telemetry", False)):
+                        stats = cached_stats(clean_data)
                     for n, v in create_stats_display(stats).items():
                         st.metric(n, v)
                 except Exception as e:
@@ -1002,7 +1024,8 @@ def render_dataframe_analysis(df, time_data):
             with c1:
                 st.markdown("##### Statistics")
                 try:
-                    stats = cached_stats(tuple(clean_data))
+                    with _timed("Stats compute", st.session_state.get("perf_telemetry", False)):
+                        stats = cached_stats(clean_data)
                     for n, v in list(create_stats_display(stats).items())[:6]:
                         st.text(f"{n}: {v}")
                 except Exception as e:
@@ -1010,7 +1033,8 @@ def render_dataframe_analysis(df, time_data):
             with c2:
                 st.markdown("##### PSD")
                 try:
-                    psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
+                    with _timed("PSD compute", st.session_state.get("perf_telemetry", False)):
+                        psd = cached_psd(data, time_data)
                     fig, _ = create_psd_plot(psd.frequencies, psd.power, 
                                           psd_units=r"$\mathrm{nT}^2/\mathrm{Hz}$", height=350)
                     st.plotly_chart(fig, use_container_width=True)
@@ -1377,15 +1401,16 @@ def render_nasa_download_form():
                     from downloader import load_mms_universal
                     
                     # Call universal loader with all parameters
-                    datasets = load_mms_universal(
-                        instrument=instrument_key,
-                        trange=trange,
-                        probe=probe,
-                        data_rate=data_rate if data_rate else 'srvy',
-                        level=level if level else 'l2',
-                        coord=coord if coord else 'gse',
-                        datatype=datatype if datatype else ''
-                    )
+                    with _timed("Download", st.session_state.get("perf_telemetry", False)):
+                        datasets = load_mms_universal(
+                            instrument=instrument_key,
+                            trange=trange,
+                            probe=probe,
+                            data_rate=data_rate if data_rate else 'srvy',
+                            level=level if level else 'l2',
+                            coord=coord if coord else 'gse',
+                            datatype=datatype if datatype else ''
+                        )
                     
                     st.session_state.data = datasets
                     st.session_state.data_loaded = True
@@ -1526,8 +1551,12 @@ def render_sidebar():
             view_mission_modal()
         
         st.markdown("### Global Controls")
-        
-
+        st.checkbox(
+            "Performance telemetry",
+            value=st.session_state.get("perf_telemetry", False),
+            key="perf_telemetry",
+            help="Show timing captions for downloads and computations."
+        )
         
         # Dynamic subsample control based on loaded data
         data = st.session_state.get('data', None)
@@ -1983,7 +2012,8 @@ def render_psd_analysis(datasets: dict, info: dict, subsample_pts: int):
         fs_override = None
 
     try:
-        psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)), fs_override or 0.0)
+        with _timed("PSD compute", st.session_state.get("perf_telemetry", False)):
+            psd = cached_psd(data, time_data, fs_override or 0.0)
     except Exception as e:
         st.error(f"PSD computation failed: {e}")
         return
@@ -2283,7 +2313,8 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
             
             # Histogram Calculation
             if plot_type in ["Histogram", "Combined"]:
-                pdf_res = compute_pdf_robust(tuple(clean_data), bins)
+                with _timed("PDF compute", st.session_state.get("perf_telemetry", False)):
+                    pdf_res = compute_pdf_robust(clean_data, bins)
                 bin_width = pdf_res.bin_centers[1] - pdf_res.bin_centers[0] if len(pdf_res.bin_centers) > 1 else 1.0
                 
                 fig.add_trace(go.Bar(
@@ -2297,7 +2328,8 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
                 
             # KDE Calculation
             if plot_type in ["KDE (PDF Line)", "Combined"]:
-                kde_x, kde_y = compute_kde(clean_data, kernel=kde_kernel, n_points=500)
+                with _timed("KDE compute", st.session_state.get("perf_telemetry", False)):
+                    kde_x, kde_y = compute_kde(clean_data, kernel=kde_kernel, n_points=500)
                 if len(kde_x) > 0:
                     fig.add_trace(go.Scatter(
                         x=kde_x, y=kde_y, mode='lines', name=f'KDE ({kde_kernel})',
@@ -2340,7 +2372,8 @@ def render_pdf_analysis(datasets: dict, info: dict, subsample_pts: int):
         with st.container(border=True):
             st.markdown("#### Statistical Summary")
             try:
-                stats = cached_stats(tuple(clean_data))
+                with _timed("Stats compute", st.session_state.get("perf_telemetry", False)):
+                    stats = cached_stats(clean_data)
                 
                 # 2 Columns x 5 Rows
                 sc1, sc2 = st.columns(2)
@@ -2403,7 +2436,8 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
     with c1:
         st.markdown("##### Statistics")
         try:
-            stats = cached_stats(tuple(clean_data))
+            with _timed("Stats compute", st.session_state.get("perf_telemetry", False)):
+                stats = cached_stats(clean_data)
             for n, v in create_stats_display(stats).items():
                 st.text(f"{n}: {v}")
         except Exception as e:
@@ -2412,7 +2446,8 @@ def render_summary_analysis(datasets: dict, info: dict, subsample_pts: int):
     with c2:
         st.markdown("##### Quick PSD")
         try:
-            psd = cached_psd(tuple(data), tuple(time_data.astype(np.int64)))
+            with _timed("PSD compute", st.session_state.get("perf_telemetry", False)):
+                psd = cached_psd(data, time_data)
             units = "nT²/Hz" if 'B' in selected_col else "km²/s²/Hz"
             fig, _ = create_psd_plot(psd.frequencies, psd.power, psd_units=units, height=350)
             st.plotly_chart(fig, use_container_width=True)
@@ -2499,7 +2534,8 @@ def render_pvi_analysis(datasets: dict, info: dict):
             continue
             
         # Compute PVI
-        pvi, kurtosis, rms = compute_pvi(clean_vectors, lag=lag)
+        with _timed("PVI compute", st.session_state.get("perf_telemetry", False)):
+            pvi, kurtosis, rms = compute_pvi(clean_vectors, lag=lag)
         
         # Align time
         pvi_time = clean_time[:-lag]

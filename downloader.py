@@ -22,6 +22,7 @@ import hashlib
 import json
 import pickle
 from pathlib import Path
+import threading
 
 # ============================================================================
 # Server-Side Caching Configuration
@@ -31,6 +32,34 @@ from pathlib import Path
 CACHE_DIR = Path(os.environ.get('MMS_CACHE_DIR', '.cache/mms_data'))
 CACHE_MAX_AGE_DAYS = int(os.environ.get('MMS_CACHE_MAX_AGE_DAYS', '30'))  # Keep files for 30 days
 CACHE_MAX_SIZE_MB = int(os.environ.get('MMS_CACHE_MAX_SIZE_MB', '5000'))  # Max 5GB cache
+MAX_DOWNLOAD_WORKERS = int(os.environ.get('MMS_MAX_DOWNLOAD_WORKERS', '4'))
+
+_thread_local = threading.local()
+
+
+@st.cache_resource(show_spinner=False)
+def _get_cdas_client():
+    """Create and cache a CDAWeb client (resource)."""
+    from cdasws import CdasWs
+    return CdasWs()
+
+
+def _get_requests_session() -> requests.Session:
+    """
+    Get a thread-local requests Session with connection pooling + retries.
+
+    Using a session enables keep-alive reuse across downloads, improving throughput.
+    """
+    session = getattr(_thread_local, "session", None)
+    if session is None:
+        session = requests.Session()
+        retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+        pool_size = max(4, MAX_DOWNLOAD_WORKERS * 2)
+        adapter = HTTPAdapter(max_retries=retries, pool_connections=pool_size, pool_maxsize=pool_size)
+        session.mount('https://', adapter)
+        session.mount('http://', adapter)
+        _thread_local.session = session
+    return session
 
 def _ensure_cache_dir():
     """Create cache directory if it doesn't exist."""
@@ -181,23 +210,19 @@ def _download_and_process_cdf(
     """
     import cdflib
     
-    # Create session with retry strategy and connection pooling
-    session = requests.Session()
-    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
-    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    session = _get_requests_session()
     
     with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
         tmp_path = tmp.name
     
     try:
         # Download with streaming for memory efficiency
-        response = session.get(file_url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        with open(tmp_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        with session.get(file_url, stream=True, timeout=30) as response:
+            response.raise_for_status()
+            with open(tmp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
         
         # Read with cdflib
         cdf = cdflib.CDF(tmp_path)
@@ -258,7 +283,7 @@ def _download_and_process_cdf(
             os.unlink(tmp_path)
         except:
             pass
-        session.close()
+        # Session is thread-local and reused; do not close here.
 
 
 @st.cache_data(show_spinner="Loading FGM data...")
@@ -435,13 +460,14 @@ def _download_fgm_core(
     """Core download logic for FGM data (uncached)."""
     
     try:
-        from cdasws import CdasWs
-        import cdflib
+        # Import check (used in helper threads)
+        import cdflib  # noqa: F401
+        from cdasws import CdasWs  # noqa: F401
     except ImportError as e:
         raise ImportError(f"Required modules not installed: {e}")
     
     # Initialize CDAWeb client
-    cdas = CdasWs()
+    cdas = _get_cdas_client()
     
     # Construct dataset ID: MMS1_FGM_SRVY_L2
     dataset = f"MMS{probe}_FGM_{data_rate.upper()}_{level.upper()}"
@@ -478,7 +504,7 @@ def _download_fgm_core(
     all_values = []
     
     # Use ThreadPoolExecutor for parallel downloads (max 4 workers to avoid overwhelming CDAWeb)
-    with ThreadPoolExecutor(max_workers=min(4, len(file_descriptions))) as executor:
+    with ThreadPoolExecutor(max_workers=min(MAX_DOWNLOAD_WORKERS, len(file_descriptions))) as executor:
         # Submit all download tasks
         future_to_file = {
             executor.submit(
@@ -686,11 +712,11 @@ def _download_fpi_species(
     """
     try:
         from cdasws import CdasWs
-        import cdflib
     except ImportError as e:
         warnings.warn(f"Required modules not installed: {e}")
         return label, None
-    
+
+    # Create a local client per thread (avoid shared-state issues)
     cdas = CdasWs()
     
     # Dataset: MMS1_FPI_FAST_L2_DIS-MOMS or MMS1_FPI_FAST_L2_DES-MOMS
@@ -721,83 +747,29 @@ def _download_fpi_species(
     all_times = []
     all_values = []
     
-    # Create session with retry strategy and connection pooling
-    session = requests.Session()
-    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
-    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
-    
-    for file_desc in file_descriptions:
-        file_url = file_desc.get('Name')
-        if not file_url:
-            continue
-        
-        with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
-            tmp_path = tmp.name
-        
-        try:
-            # Download with streaming for memory efficiency
-            response = session.get(file_url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            with open(tmp_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-            
-            cdf = cdflib.CDF(tmp_path)
-            
-            # Find epoch variable
-            epoch_data = None
-            epoch_patterns = [
-                f'Epoch',
-                f'mms{probe}_{species}_epoch_{data_rate}',
-                'epoch'
-            ]
-            
-            for pattern in epoch_patterns:
-                try:
-                    epoch_data = cdf.varget(pattern)
-                    break
-                except:
-                    continue
-            
-            if epoch_data is None:
-                info = cdf.cdf_info()
-                for zvar in getattr(info, 'zVariables', []):
-                    if 'epoch' in zvar.lower():
-                        epoch_data = cdf.varget(zvar)
-                        break
-            
-            if epoch_data is None:
-                continue
-            
-            # Get velocity data
-            try:
-                vel_data = cdf.varget(var_name)
-            except:
-                continue
-            
-            # Convert epoch to datetime - use encode for safe TT2000 conversion
-            times = cdflib.cdfepoch.encode(epoch_data)
-            times_np = np.array(times, dtype='datetime64[ns]')
-            start_np = np.datetime64(start_time)
-            end_np = np.datetime64(end_time)
-            
-            mask = (times_np >= start_np) & (times_np <= end_np)
-            times_filtered = times_np[mask]
-            values_filtered = vel_data[mask]
-            
-            if len(times_filtered) > 0:
+    var_names = [var_name]
+    var_patterns = [var_name]
+
+    # Download and process files in parallel for this species
+    with ThreadPoolExecutor(max_workers=min(MAX_DOWNLOAD_WORKERS, len(file_descriptions))) as executor:
+        future_to_file = {
+            executor.submit(
+                _process_single_cdf_universal,
+                file_desc.get('Name'),
+                var_names,
+                var_patterns,
+                start_time,
+                end_time
+            ): file_desc
+            for file_desc in file_descriptions
+            if file_desc.get('Name')
+        }
+
+        for future in as_completed(future_to_file):
+            times_filtered, values_filtered = future.result()
+            if times_filtered is not None and values_filtered is not None:
                 all_times.append(times_filtered)
                 all_values.append(values_filtered)
-            
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
-    
-    session.close()
     
     if not all_times:
         warnings.warn(f"No {label} data found in time range")
@@ -1039,23 +1011,19 @@ def _process_single_cdf_universal(
     """
     import cdflib
     
-    # Create session with retry strategy and connection pooling
-    session = requests.Session()
-    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
-    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=5, pool_maxsize=10))
+    session = _get_requests_session()
     
     with tempfile.NamedTemporaryFile(suffix='.cdf', delete=False) as tmp:
         tmp_path = tmp.name
     
     try:
         # Download with streaming for memory efficiency
-        response = session.get(file_url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        with open(tmp_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
+        with session.get(file_url, stream=True, timeout=30) as response:
+            response.raise_for_status()
+            with open(tmp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
         
         cdf = cdflib.CDF(tmp_path)
         
@@ -1133,7 +1101,7 @@ def _process_single_cdf_universal(
             os.unlink(tmp_path)
         except:
             pass
-        session.close()
+        # Session is thread-local and reused; do not close here.
 
 
 def _download_cdf_and_extract(
@@ -1155,12 +1123,12 @@ def _download_cdf_and_extract(
     Uses parallel downloads for improved performance when multiple files are available.
     """
     try:
-        from cdasws import CdasWs
-        import cdflib
+        # Import check (actual reading happens in helper threads)
+        from cdasws import CdasWs  # noqa: F401
     except ImportError as e:
         raise ImportError(f"Required modules not installed: {e}")
     
-    cdas = CdasWs()
+    cdas = _get_cdas_client()
     
     # Build variable names from patterns
     var_names = []
@@ -1193,7 +1161,7 @@ def _download_cdf_and_extract(
     all_values = []
     
     # Download and process CDF files in parallel
-    with ThreadPoolExecutor(max_workers=min(4, len(file_descriptions))) as executor:
+    with ThreadPoolExecutor(max_workers=min(MAX_DOWNLOAD_WORKERS, len(file_descriptions))) as executor:
         # Submit all download tasks
         future_to_file = {
             executor.submit(

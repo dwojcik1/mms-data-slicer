@@ -686,7 +686,7 @@ def compute_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
     Cached wrapper for PDF computation with strict shape validation.
     Prevents broadcasting errors by ensuring bin_centers and density match.
     """
-    data = np.array(data_tuple)
+    data = np.asarray(data_tuple)
     
     # Handle singular or empty data
     if len(data) == 0 or np.ptp(data) == 0:
@@ -729,7 +729,7 @@ def compute_pdf_robust(data_tuple: tuple, bins: int = 50) -> PDFResult:
 @st.cache_data(show_spinner=False)
 def cached_stats(data_tuple: tuple) -> StatisticsResult:
     """Cached wrapper for statistics."""
-    data = np.array(data_tuple)
+    data = np.asarray(data_tuple)
     return compute_statistics(data)
 
 
