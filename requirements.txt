@@ -6,5 +6,5 @@ plotly==6.5.2
 matplotlib==3.10.8
 pyspedas==2.0.6
 cdflib==1.3.8
-requests==2.32.5
+requests==2.33.0
 urllib3==2.6.3
